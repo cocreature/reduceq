@@ -2,8 +2,10 @@ import           Reduceq.Prelude
 
 import           Test.Hspec
 
-import           Reduceq.AST
+import           Reduceq.AST as AST
+import qualified Reduceq.CoqAST as CoqAST
 import           Reduceq.Parser
+import           Reduceq.Transform
 import qualified Text.PrettyPrint.ANSI.Leijen as Pretty
 
 testParseFunction :: Text -> FunDecl -> Expectation
@@ -67,10 +69,45 @@ functionParseTests =
         ])
   ]
 
+testTransform :: AST.FunDecl -> CoqAST.Expr -> Expectation
+testTransform original expected =
+  runTransformM (transformDecl original) `shouldBe` expected
+
+transformTests :: [(AST.FunDecl,CoqAST.Expr)]
+transformTests =
+  [ ( AST.FunctionDeclaration
+        "f"
+        [AST.TypedVar "x" AST.TyInt, AST.TypedVar "y" AST.TyInt]
+        AST.TyInt
+        [AST.Return (AST.VarRef "x")]
+    , CoqAST.Abs
+        CoqAST.TyInt
+        (CoqAST.Abs CoqAST.TyInt (CoqAST.Var (CoqAST.VarId 1))))
+  , ( AST.FunctionDeclaration
+        "f"
+        [AST.TypedVar "x" AST.TyInt, AST.TypedVar "y" AST.TyInt]
+        AST.TyInt
+        [AST.Return (AST.VarRef "y")]
+    , CoqAST.Abs
+        CoqAST.TyInt
+        (CoqAST.Abs CoqAST.TyInt (CoqAST.Var (CoqAST.VarId 0))))
+  ]
+
 parserSpec :: Spec
-parserSpec =
+parserSpec = do
   describe "parse function" $ do
-    mapM_ (\(test, i) -> it ("parses example " <> show i <> " correctly") (uncurry testParseFunction test)) (zip functionParseTests [(1::Int)..])
+    mapM_
+      (\(test, i) ->
+         it
+           ("parses example " <> show i <> " correctly")
+           (uncurry testParseFunction test))
+      (zip functionParseTests [(1 :: Int) ..])
+  describe "transform" $ do
+    mapM_
+      (\(test, i) ->
+         it ("transforms example " <> show i <> " correctly")
+         (uncurry testTransform test))
+      (zip transformTests [(1 :: Int) ..])
 
 main :: IO ()
 main = hspec $ do
