@@ -38,13 +38,15 @@ newtype Parser a =
            , MarkParsing Delta
            )
 
-instance Reducer Text Rope where
-  unit = unit . strand . encodeUtf8
-  cons = cons . strand . encodeUtf8
-  snoc r = snoc r . strand . encodeUtf8
+newtype RopeText = RopeText { unRopeText :: Text }
+
+instance Reducer RopeText Rope where
+  unit = unit . strand . encodeUtf8 . unRopeText
+  cons = cons . strand . encodeUtf8 . unRopeText
+  snoc r = snoc r . strand . encodeUtf8 . unRopeText
 
 parseText :: Parser a -> Delta -> Text -> Result a
-parseText (Parser p) d inp = starve $ feed inp $ stepParser (release d *> p) mempty mempty
+parseText (Parser p) d inp = starve $ feed (RopeText inp) $ stepParser (release d *> p) mempty mempty
 
 varId :: TokenParsing m => IdentifierStyle m
 varId =
@@ -102,14 +104,6 @@ tyVarParser = do
   ty <- tyParser
   pure (TypedVar name ty)
 
-intBinopParser :: Parser IntBinop
-intBinopParser =
-  choice
-    [ IAdd <$ reserve varOp "+"
-    , ISub <$ reserve varOp "-"
-    , IMul <$ reserve varOp "*"
-    ]
-
 exprParser :: Parser Expr
 exprParser = buildExpressionParser table term
   where
@@ -166,7 +160,7 @@ fundeclParser = do
   reserve funId "fn"
   name <- ident funId
   args <- parens (many tyVarParser)
-  token (text "->")
+  _ <- token (text "->")
   returnTy <- tyParser
   body <- braces (many stmtParser)
   pure (FunctionDeclaration name args returnTy body)
