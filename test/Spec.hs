@@ -24,6 +24,48 @@ functionParseTests =
         [TypedVar "x" TyInt]
         TyInt
         [Return (IntBinop IAdd (VarRef (mkVarId "x")) (IntLit 1))])
+  , ( "fn f (x : Int) -> Int { x := x + 1; return (x + 1); }"
+    , FunctionDeclaration
+        "f"
+        [TypedVar "x" TyInt]
+        TyInt
+        [ Assgn (VarLoc "x") (IntBinop IAdd (VarRef "x") (IntLit 1))
+        , Return (IntBinop IAdd (VarRef "x") (IntLit 1))
+        ])
+  , ( "fn f (x : Int) -> Int { y : Int = x + 1; return (y); }"
+    , FunctionDeclaration
+        "f"
+        [TypedVar "x" TyInt]
+        TyInt
+        [ VarDecl (TypedVar "y" TyInt) (IntBinop IAdd (VarRef "x") (IntLit 1))
+        , Return (VarRef "y")
+        ])
+  , ( "fn f (x : Int) -> Int { y : Int = 0; while (y < x) { y := y + 1; } return (y); }"
+    , FunctionDeclaration
+        "f"
+        [TypedVar "x" TyInt]
+        TyInt
+        [ VarDecl (TypedVar "y" TyInt) (IntLit 0)
+        , While
+            (IntComp ILt (VarRef "y") (VarRef "x"))
+            [Assgn (VarLoc "y") (IntBinop IAdd (VarRef "y") (IntLit 1))]
+        , Return (VarRef "y")
+        ])
+  , ( "fn f (x : Int) -> Int { if (x < 0) { x := 1; } if (x > 0) { x := 2; } else { x := 3; } return (x); }"
+    , FunctionDeclaration
+        "f"
+        [TypedVar "x" TyInt]
+        TyInt
+        [ If
+            (IntComp ILt (VarRef "x") (IntLit 0))
+            [Assgn (VarLoc "x") (IntLit 1)]
+            Nothing
+        , If
+            (IntComp IGt (VarRef "x") (IntLit 0))
+            [Assgn (VarLoc "x") (IntLit 2)]
+            (Just [Assgn (VarLoc "x") (IntLit 3)])
+        , Return (VarRef "x")
+        ])
   ]
 
 parserSpec :: Spec

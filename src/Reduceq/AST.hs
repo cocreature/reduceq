@@ -9,6 +9,8 @@ module Reduceq.AST
   , Expr(..)
   , IntBinop(..)
   , Stmt(..)
+  , AssgnLocation(..)
+  , IntComp(..)
   ) where
 
 import Reduceq.Prelude
@@ -45,14 +47,34 @@ data IntBinop
   | IMul
   deriving (Show, Eq, Ord)
 
+data IntComp
+  = IEq
+  | ILt
+  | IGt
+  deriving (Show, Eq, Ord)
+
 data Expr
   = IntBinop !IntBinop
              !Expr
              !Expr
+  | IntComp !IntComp !Expr !Expr
   | VarRef !VarId
   | IntLit !Integer
   deriving (Show, Eq, Ord)
 
-data Stmt =
-  Return !Expr
+data AssgnLocation
+  = VarLoc !VarId
+  | ArrayEl !AssgnLocation
+            !AssgnLocation
+  deriving (Show, Eq, Ord)
+
+data Stmt
+  = Return !Expr
+  | Assgn !AssgnLocation
+          !Expr
+  | VarDecl !TypedVar !Expr
+  | If !Expr
+       ![Stmt]
+       !(Maybe [Stmt])
+  | While !Expr ![Stmt]
   deriving (Show, Eq, Ord)

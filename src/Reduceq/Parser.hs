@@ -115,20 +115,51 @@ exprParser = buildExpressionParser table term
   where
     term = choice [parens exprParser, VarRef <$> ident varId, IntLit <$> natural ]
     table =
-      [ [intBinary "*" IMul AssocLeft]
-      , [intBinary "+" IAdd AssocLeft, intBinary "-" ISub AssocLeft]
+      [ [intBinary "*" IMul]
+      , [intBinary "+" IAdd, intBinary "-" ISub]
+      , [intCompBinary "==" IEq, intCompBinary "<" ILt, intCompBinary ">" IGt]
       ]
-    intBinary name op assoc = Infix (IntBinop op <$ reserve varOp name) assoc
+    intBinary name op = Infix (IntBinop op <$ reserve varOp name) AssocLeft
+    intCompBinary name op = Infix (IntComp op <$ reserve varOp name) AssocLeft
 
-returnParser :: Parser Stmt
-returnParser = do
-  reserve varId "return"
-  expr <- parens exprParser
-  _ <- semi
-  pure (Return expr)
+assgnLocParser :: Parser AssgnLocation
+assgnLocParser = VarLoc <$> ident varId
+
+backtrackingChoice :: [Parser a] -> Parser a
+backtrackingChoice = choice . map try
 
 stmtParser :: Parser Stmt
-stmtParser = choice [returnParser]
+stmtParser =
+  backtrackingChoice [while, ret, assgn, varDecl, if_] <?> "statement"
+  where
+    ret = do
+      reserve varId "return"
+      expr <- parens exprParser
+      _ <- semi
+      pure (Return expr)
+    assgn = do
+      loc <- assgnLocParser
+      reserve varOp ":="
+      val <- exprParser
+      _ <- semi
+      pure (Assgn loc val)
+    varDecl = do
+      tyVar <- tyVarParser
+      reserve varOp "="
+      val <- exprParser
+      _ <- semi
+      pure (VarDecl tyVar val)
+    while = do
+      reserve varId "while"
+      cond <- parens exprParser
+      body <- braces (many stmtParser)
+      pure (While cond body)
+    if_ = do
+      reserve varId "if"
+      cond <- parens exprParser
+      ifTrue <- braces (many stmtParser)
+      ifFalse <- optional (reserve varId "else" *> braces (many stmtParser))
+      pure (If cond ifTrue ifFalse)
 
 fundeclParser :: Parser FunDecl
 fundeclParser = do
