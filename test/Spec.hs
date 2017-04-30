@@ -2,7 +2,6 @@ import           Reduceq.Prelude
 
 import           Test.Hspec
 
-import           Control.Lens
 import           Reduceq.AST
 import           Reduceq.Parser
 import qualified Text.PrettyPrint.ANSI.Leijen as Pretty
@@ -71,8 +70,7 @@ functionParseTests =
 parserSpec :: Spec
 parserSpec =
   describe "parse function" $ do
-    it "parses functions correctly" $ do
-      foldMap (uncurry testParseFunction) functionParseTests
+    mapM_ (\(test, i) -> it ("parses example " <> show i <> " correctly") (uncurry testParseFunction test)) (zip functionParseTests [(1::Int)..])
 
 main :: IO ()
 main = hspec $ do
