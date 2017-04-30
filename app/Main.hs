@@ -1,6 +1,6 @@
 module Main where
 
-import Lib
+import Reduceq.Prelude
 
 main :: IO ()
-main = someFunc
+main = putStrLn @Text "Hello World!"
