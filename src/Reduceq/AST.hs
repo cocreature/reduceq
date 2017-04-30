@@ -75,6 +75,6 @@ data Stmt
   | VarDecl !TypedVar !Expr
   | If !Expr
        ![Stmt]
-       !(Maybe [Stmt])
+       !(Maybe [Stmt]) -- ^ optional else block
   | While !Expr ![Stmt]
   deriving (Show, Eq, Ord)
