@@ -78,7 +78,7 @@ varOp =
   { _styleName = "variable operator"
   , _styleStart = oneOf "!#$%&*+./<=>?@\\^|-~" <|> satisfy isSymbol
   , _styleLetter = _styleStart varOp <|> char ':'
-  , _styleReserved = HashSet.fromList ["=", "+", "-", "*"]
+  , _styleReserved = HashSet.fromList ["=", "+", "-", "*", ",", ":="]
   , _styleHighlight = Operator
   , _styleReservedHighlight = ReservedOperator
   }
@@ -159,7 +159,7 @@ fundeclParser :: Parser FunDecl
 fundeclParser = do
   reserve funId "fn"
   name <- ident funId
-  args <- parens (many tyVarParser)
+  args <- parens (tyVarParser `sepBy` reserve varOp ",")
   _ <- token (text "->")
   returnTy <- tyParser
   body <- braces (many stmtParser)
