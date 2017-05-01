@@ -1,11 +1,9 @@
 import           Reduceq.Prelude
 
-import           Control.Lens
 import           Test.Hspec
 import qualified Text.PrettyPrint.ANSI.Leijen as Pretty
 
 import           Reduceq.AST as AST
-import qualified Reduceq.CoqAST as CoqAST
 import           Reduceq.Parser
 import           Reduceq.Pretty
 import           Reduceq.Transform
@@ -98,6 +96,8 @@ transformTests =
     , "(fun _ : Int. (fun _ : Int. ((fun _ : Int. v0) (v0 + 1))))")
   , ( "fn f(x : Int) -> Int { if (x < 0) { x := 0; } return (x); }"
     , "(fun _ : Int. ((fun _ : Int. v0) (if (v0 < 0) ((fun _ : Int. v0) 0) v0)))")
+  , ( "fn f() -> Int { x : Int = 1; y : Int = 2; z : Int = 3; if (x < 0) { x := 42; y := 43; } else { z := 47; } return (x+y+z); }"
+    , "((fun _ : Int. ((fun _ : Int. ((fun _ : Int. ((fun _ : Int * Int * Int. (((fst v0) + (fst (snd v0))) + (snd (snd v0)))) (if (v2 < 0) ((fun _ : Int. ((fun _ : Int. (v1, (v0, v2))) 43)) 42) ((fun _ : Int. (v3, (v2, v0))) 47)))) 3)) 2)) 1)")
   ]
 
 parserSpec :: Spec
