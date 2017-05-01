@@ -3,11 +3,14 @@ module Reduceq.CoqAST
   , Ty(..)
   , VarId(..)
   , IntBinop(..)
+  , IntComp(..)
   , liftVarsAbove
   , shiftVars
   ) where
 
 import Reduceq.Prelude
+
+import Reduceq.AST (IntBinop(..), IntComp(..))
 
 -- | DeBruijn indices
 newtype VarId =
@@ -16,12 +19,10 @@ newtype VarId =
 
 data Ty
   = TyInt
-  | TyBool deriving (Show, Eq, Ord)
-
-data IntBinop
-  = IAdd
-  | ISub
-  | IMul
+  | TyBool
+  | TyUnit
+  | TyProd Ty
+           Ty
   deriving (Show, Eq, Ord)
 
 data Expr
@@ -40,7 +41,15 @@ data Expr
   | Case Expr
          Expr
          Expr
-  | IntBinop IntBinop Expr Expr
+  | If Expr
+       Expr
+       Expr
+  | IntBinop IntBinop
+             Expr
+             Expr
+  | IntComp IntComp
+            Expr
+            Expr
   deriving (Show, Eq, Ord)
 
 -- | Increment free DeBruijn indices greater or equal than m by n

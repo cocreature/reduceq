@@ -60,6 +60,8 @@ data Expr
   | IntComp !IntComp !Expr !Expr
   | VarRef !VarId
   | IntLit !Integer
+  | Pair !Expr !Expr
+  | Unit
   deriving (Show, Eq, Ord)
 
 data AssgnLocation

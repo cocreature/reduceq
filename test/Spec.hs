@@ -110,6 +110,29 @@ transformTests =
                  CoqAST.IAdd
                  (CoqAST.Var (CoqAST.VarId 0))
                  (CoqAST.IntLit 1)))))
+  , ( AST.FunctionDeclaration
+        "f"
+        [AST.TypedVar "x" AST.TyInt]
+        AST.TyInt
+        [ AST.If
+            (AST.IntComp AST.ILt (AST.VarRef "x") (AST.IntLit 0))
+            [AST.Assgn (AST.VarLoc "x") (AST.IntLit 0)]
+            Nothing
+        , AST.Return (AST.VarRef "x")
+        ]
+    , CoqAST.Abs
+        CoqAST.TyInt
+        (CoqAST.App
+           (CoqAST.Abs CoqAST.TyInt (CoqAST.Var (CoqAST.VarId 0)))
+           (CoqAST.If
+              (CoqAST.IntComp
+                 ILt
+                 (CoqAST.Var (CoqAST.VarId 0))
+                 (CoqAST.IntLit 0))
+              (CoqAST.App
+                 (CoqAST.Abs CoqAST.TyInt (CoqAST.Var (CoqAST.VarId 0)))
+                 (CoqAST.IntLit 0))
+              (CoqAST.Var (CoqAST.VarId 0)))))
   ]
 
 parserSpec :: Spec
