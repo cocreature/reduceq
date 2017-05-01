@@ -119,12 +119,9 @@ exprParser = buildExpressionParser table term
 assgnLocParser :: Parser AssgnLocation
 assgnLocParser = VarLoc <$> ident varId
 
-backtrackingChoice :: [Parser a] -> Parser a
-backtrackingChoice = choice . map try
-
 stmtParser :: Parser Stmt
 stmtParser =
-  backtrackingChoice [while, ret, assgn, varDecl, if_] <?> "statement"
+  choice [while, ret, if_, varDecl, assgn] <?> "statement"
   where
     ret =
       (do reserve varId "return"
@@ -140,7 +137,7 @@ stmtParser =
           pure (Assgn loc val)) <?>
       "assignment"
     varDecl =
-      (do tyVar <- tyVarParser
+      (do tyVar <- try tyVarParser
           reserve varOp "="
           val <- exprParser
           _ <- semi
