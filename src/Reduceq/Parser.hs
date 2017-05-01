@@ -126,41 +126,47 @@ stmtParser :: Parser Stmt
 stmtParser =
   backtrackingChoice [while, ret, assgn, varDecl, if_] <?> "statement"
   where
-    ret = do
-      reserve varId "return"
-      expr <- parens exprParser
-      _ <- semi
-      pure (Return expr)
-    assgn = do
-      loc <- assgnLocParser
-      reserve varOp ":="
-      val <- exprParser
-      _ <- semi
-      pure (Assgn loc val)
-    varDecl = do
-      tyVar <- tyVarParser
-      reserve varOp "="
-      val <- exprParser
-      _ <- semi
-      pure (VarDecl tyVar val)
-    while = do
-      reserve varId "while"
-      cond <- parens exprParser
-      body <- braces (many stmtParser)
-      pure (While cond body)
-    if_ = do
-      reserve varId "if"
-      cond <- parens exprParser
-      ifTrue <- braces (many stmtParser)
-      ifFalse <- optional (reserve varId "else" *> braces (many stmtParser))
-      pure (If cond ifTrue ifFalse)
+    ret =
+      (do reserve varId "return"
+          expr <- parens exprParser
+          _ <- semi
+          pure (Return expr)) <?>
+      "return statement"
+    assgn =
+      (do loc <- assgnLocParser
+          reserve varOp ":="
+          val <- exprParser
+          _ <- semi
+          pure (Assgn loc val)) <?>
+      "assignment"
+    varDecl =
+      (do tyVar <- tyVarParser
+          reserve varOp "="
+          val <- exprParser
+          _ <- semi
+          pure (VarDecl tyVar val)) <?>
+      "variable declaration"
+    while =
+      (do reserve varId "while"
+          cond <- parens exprParser
+          body <- braces (many stmtParser)
+          pure (While cond body)) <?>
+      "while loop"
+    if_ =
+      (do reserve varId "if"
+          cond <- parens exprParser
+          ifTrue <- braces (many stmtParser)
+          ifFalse <- optional (reserve varId "else" *> braces (many stmtParser))
+          pure (If cond ifTrue ifFalse)) <?>
+      "if statement"
 
 fundeclParser :: Parser FunDecl
-fundeclParser = do
-  reserve funId "fn"
-  name <- ident funId
-  args <- parens (tyVarParser `sepBy` reserve varOp ",")
-  _ <- token (text "->")
-  returnTy <- tyParser
-  body <- braces (many stmtParser)
-  pure (FunctionDeclaration name args returnTy body)
+fundeclParser =
+  (do reserve funId "fn"
+      name <- ident funId
+      args <- parens (tyVarParser `sepBy` reserve varOp ",")
+      _ <- token (text "->")
+      returnTy <- tyParser
+      body <- braces (many stmtParser)
+      pure (FunctionDeclaration name args returnTy body)) <?>
+  "function declaration"
