@@ -110,6 +110,8 @@ transformExpr (AST.IntBinop op arg1 arg2) =
   CoqAST.IntBinop op <$> transformExpr arg1 <*> transformExpr arg2
 transformExpr (AST.IntComp comp arg1 arg2) =
   CoqAST.IntComp comp <$> transformExpr arg1 <*> transformExpr arg2
+transformExpr (AST.Pair x y) =
+  CoqAST.Pair <$> transformExpr x <*> transformExpr y
 
 transformTy :: AST.Ty -> CoqAST.Ty
 transformTy AST.TyInt = CoqAST.TyInt
