@@ -41,12 +41,28 @@ transformDecl :: AST.FunDecl -> TransformM CoqAST.Expr
 transformDecl (AST.FunctionDeclaration _ args _ body) =
   foldr (.) identity (map withBoundVar args) (transformStmts body)
 
+transformLoc :: AST.AssgnLocation -> TransformM AST.TypedVar
+-- TODO figure out the correct type instead of defaulting to TyInt
+transformLoc (AST.VarLoc id) = return (AST.TypedVar id AST.TyInt)
+
 transformStmts :: [AST.Stmt] -> TransformM CoqAST.Expr
 transformStmts [] = panic "Missing return statement"
 transformStmts (AST.Return e : _) = transformExpr e
+transformStmts (AST.Assgn loc val:stmts) = do
+  loc' <- transformLoc loc
+  CoqAST.App <$> withBoundVar loc' (transformStmts stmts) <*>
+    (transformExpr val)
 
 transformExpr :: AST.Expr -> TransformM CoqAST.Expr
 transformExpr (AST.VarRef id) = varRef id
+transformExpr (AST.IntLit i) = pure (CoqAST.IntLit i)
+transformExpr (AST.IntBinop op arg1 arg2) =
+  CoqAST.IntBinop (transformOp op) <$> transformExpr arg1 <*> transformExpr arg2
 
 transformTy :: AST.Ty -> CoqAST.Ty
 transformTy AST.TyInt = CoqAST.TyInt
+
+transformOp :: AST.IntBinop -> CoqAST.IntBinop
+transformOp AST.IAdd = CoqAST.IAdd
+transformOp AST.ISub = CoqAST.ISub
+transformOp AST.IMul = CoqAST.IMul

@@ -2,6 +2,7 @@ module Reduceq.CoqAST
   ( Expr(..)
   , Ty(..)
   , VarId(..)
+  , IntBinop(..)
   , liftVarsAbove
   , shiftVars
   ) where
@@ -17,8 +18,15 @@ data Ty
   = TyInt
   | TyBool deriving (Show, Eq, Ord)
 
+data IntBinop
+  = IAdd
+  | ISub
+  | IMul
+  deriving (Show, Eq, Ord)
+
 data Expr
   = Var VarId
+  | IntLit !Integer
   | App Expr
         Expr
   | Abs Ty
@@ -32,6 +40,7 @@ data Expr
   | Case Expr
          Expr
          Expr
+  | IntBinop IntBinop Expr Expr
   deriving (Show, Eq, Ord)
 
 -- | Increment free DeBruijn indices greater or equal than m by n
