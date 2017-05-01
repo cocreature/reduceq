@@ -19,6 +19,7 @@ library
                        Reduceq.CoqAST
                        Reduceq.Parser
                        Reduceq.Prelude
+                       Reduceq.Pretty
                        Reduceq.Transform
   build-depends:       base >= 4.9 && < 5
                      , containers
@@ -26,8 +27,10 @@ library
                      , parsers
                      , protolude
                      , reducers
+                     , text
                      , trifecta
                      , unordered-containers
+                     , wl-pprint-text
   default-language:    Haskell2010
   default-extensions:  NoImplicitPrelude, OverloadedStrings, TypeApplications
   ghc-options:         -Wall

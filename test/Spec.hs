@@ -2,11 +2,13 @@ import           Reduceq.Prelude
 
 import           Test.Hspec
 
+import qualified Text.PrettyPrint.ANSI.Leijen as Pretty
+
 import           Reduceq.AST as AST
 import qualified Reduceq.CoqAST as CoqAST
 import           Reduceq.Parser
+import           Reduceq.Pretty
 import           Reduceq.Transform
-import qualified Text.PrettyPrint.ANSI.Leijen as Pretty
 
 testParseFunction :: Text -> FunDecl -> Expectation
 testParseFunction input result =
@@ -69,28 +71,25 @@ functionParseTests =
         ])
   ]
 
-testTransform :: AST.FunDecl -> CoqAST.Expr -> Expectation
+testTransform :: AST.FunDecl -> Text -> Expectation
 testTransform original expected =
-  runTransformM (transformDecl original) `shouldBe` expected
+  displayDoc (pprintExpr (runTransformM (transformDecl original))) `shouldBe`
+  expected
 
-transformTests :: [(AST.FunDecl,CoqAST.Expr)]
+transformTests :: [(AST.FunDecl,Text)]
 transformTests =
   [ ( AST.FunctionDeclaration
         "f"
         [AST.TypedVar "x" AST.TyInt, AST.TypedVar "y" AST.TyInt]
         AST.TyInt
         [AST.Return (AST.VarRef "x")]
-    , CoqAST.Abs
-        CoqAST.TyInt
-        (CoqAST.Abs CoqAST.TyInt (CoqAST.Var (CoqAST.VarId 1))))
+    , "(fun _ : Int. (fun _ : Int. v1))")
   , ( AST.FunctionDeclaration
         "f"
         [AST.TypedVar "x" AST.TyInt, AST.TypedVar "y" AST.TyInt]
         AST.TyInt
         [AST.Return (AST.VarRef "y")]
-    , CoqAST.Abs
-        CoqAST.TyInt
-        (CoqAST.Abs CoqAST.TyInt (CoqAST.Var (CoqAST.VarId 0))))
+    , "(fun _ : Int. (fun _ : Int. v0))")
   , ( AST.FunctionDeclaration
         "f"
         [AST.TypedVar "x" AST.TyInt, AST.TypedVar "y" AST.TyInt]
@@ -100,16 +99,7 @@ transformTests =
             (AST.IntBinop AST.IAdd (AST.VarRef "y") (AST.IntLit 1))
         , AST.Return (AST.VarRef "x")
         ]
-    , CoqAST.Abs
-        CoqAST.TyInt
-        (CoqAST.Abs
-           CoqAST.TyInt
-           (CoqAST.App
-              (CoqAST.Abs CoqAST.TyInt (CoqAST.Var (CoqAST.VarId 0)))
-              (CoqAST.IntBinop
-                 CoqAST.IAdd
-                 (CoqAST.Var (CoqAST.VarId 0))
-                 (CoqAST.IntLit 1)))))
+    , "(fun _ : Int. (fun _ : Int. ((fun _ : Int. v0) (v0 + 1))))")
   , ( AST.FunctionDeclaration
         "f"
         [AST.TypedVar "x" AST.TyInt]
@@ -120,19 +110,7 @@ transformTests =
             Nothing
         , AST.Return (AST.VarRef "x")
         ]
-    , CoqAST.Abs
-        CoqAST.TyInt
-        (CoqAST.App
-           (CoqAST.Abs CoqAST.TyInt (CoqAST.Var (CoqAST.VarId 0)))
-           (CoqAST.If
-              (CoqAST.IntComp
-                 ILt
-                 (CoqAST.Var (CoqAST.VarId 0))
-                 (CoqAST.IntLit 0))
-              (CoqAST.App
-                 (CoqAST.Abs CoqAST.TyInt (CoqAST.Var (CoqAST.VarId 0)))
-                 (CoqAST.IntLit 0))
-              (CoqAST.Var (CoqAST.VarId 0)))))
+    , "(fun _ : Int. ((fun _ : Int. v0) (if (v0 < 0) ((fun _ : Int. v0) 0) v0)))")
   ]
 
 parserSpec :: Spec
