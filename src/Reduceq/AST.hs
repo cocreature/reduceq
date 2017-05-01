@@ -15,6 +15,8 @@ module Reduceq.AST
 
 import Reduceq.Prelude
 
+import Data.Data
+
 newtype VarId = VarId Text deriving (Show, Eq, Ord, IsString)
 
 mkVarId :: Text -> VarId
@@ -45,13 +47,13 @@ data IntBinop
   = IAdd
   | ISub
   | IMul
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Data, Typeable)
 
 data IntComp
   = IEq
   | ILt
   | IGt
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Data, Typeable)
 
 data Expr
   = IntBinop !IntBinop

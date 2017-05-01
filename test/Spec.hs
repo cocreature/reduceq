@@ -4,18 +4,22 @@ import           Test.Hspec
 import qualified Text.PrettyPrint.ANSI.Leijen as Pretty
 
 import           Reduceq.AST as AST
+import           Reduceq.CoqAST (betaReduce)
 import           Reduceq.Parser
 import           Reduceq.Pretty
 import           Reduceq.Transform
 
-testParseFunction :: Text -> FunDecl -> Expectation
-testParseFunction input result =
-  case parseText fundeclParser mempty input of
+parseError :: ErrInfo -> Expectation
+parseError = expectationFailure . flip Pretty.displayS mempty . Pretty.renderPretty 0.8 80 . _errDoc
+
+expectParseResult :: (Show a, Eq a) => Parser a -> Text -> a -> Expectation
+expectParseResult parser input result =
+  case parseText parser mempty input of
     Success result' -> result' `shouldBe` result
-    Failure errInfo ->
-      (expectationFailure .
-       flip Pretty.displayS mempty . Pretty.renderPretty 0.8 80 . _errDoc)
-        errInfo
+    Failure errInfo -> parseError errInfo
+
+testParseFunction :: Text -> FunDecl -> Expectation
+testParseFunction input result = expectParseResult fundeclParser input result
 
 functionParseTests :: [(Text, FunDecl)]
 functionParseTests =
@@ -81,10 +85,7 @@ testTransform original expected =
     Success parsedOriginal ->
       displayDoc (pprintExpr (runTransformM (transformDecl parsedOriginal))) `shouldBe`
       expected
-    Failure errInfo ->
-      (expectationFailure .
-       flip Pretty.displayS mempty . Pretty.renderPretty 0.8 80 . _errDoc)
-        errInfo
+    Failure errInfo -> parseError errInfo
 
 transformTests :: [(Text,Text)]
 transformTests =
@@ -100,6 +101,30 @@ transformTests =
     , "((fun _ : Int. ((fun _ : Int. ((fun _ : Int. ((fun _ : Int * Int * Int. (((fst v0) + (fst (snd v0))) + (snd (snd v0)))) (if (v2 < 0) ((fun _ : Int. ((fun _ : Int. (v1, (v0, v2))) 43)) 42) ((fun _ : Int. (v3, (v2, v0))) 47)))) 3)) 2)) 1)")
   ]
 
+testReducedTransform :: Text -> Text -> Expectation
+testReducedTransform original expected =
+  case parseText fundeclParser mempty original of
+    Success parsedOriginal ->
+      displayDoc
+        (pprintExpr (betaReduce (runTransformM (transformDecl parsedOriginal)))) `shouldBe`
+      expected
+    Failure errInfo -> parseError errInfo
+
+reducedTransformTests :: [(Text, Text)]
+reducedTransformTests =
+  [ ( "fn f(x : Int, y : Int) -> Int { return (x); }"
+    , "(fun _ : Int. (fun _ : Int. v1))")
+  , ( "fn f(x : Int, y : Int) -> Int { return (y); }"
+    , "(fun _ : Int. (fun _ : Int. v0))")
+  , ( "fn f(x : Int, y : Int) -> Int { x := y + 1; return (x); }"
+    , "(fun _ : Int. (fun _ : Int. ((fun _ : Int. v0) (v0 + 1))))")
+  , ( "fn f(x : Int) -> Int { if (x < 0) { x := 0; } return (x); }"
+    , "(fun _ : Int. ((fun _ : Int. v0) (if (v0 < 0) 0 v0)))")
+  , ( "fn f() -> Int { x : Int = 1; y : Int = 2; z : Int = 3; if (x < 0) { x := 42; y := 43; } else { z := 47; } return (x+y+z); }"
+    , "((fun _ : Int * Int * Int. (((fst v0) + (fst (snd v0))) + (snd (snd v0)))) (if (1 < 0) (42, (43, 3)) (1, (2, 47))))")
+  ]
+
+
 parserSpec :: Spec
 parserSpec = do
   describe "parse function" $ do
@@ -112,9 +137,17 @@ parserSpec = do
   describe "transform" $ do
     mapM_
       (\(test, i) ->
-         it ("transforms example " <> show i <> " correctly")
-         (uncurry testTransform test))
+         it
+           ("transforms example " <> show i <> " correctly")
+           (uncurry testTransform test))
       (zip transformTests [(1 :: Int) ..])
+  describe "transform and reduce" $ do
+    mapM_
+      (\(test, i) ->
+         it
+           ("transforms and reduces example " <> show i <> " correctly")
+           (uncurry testReducedTransform test))
+      (zip reducedTransformTests [(1 :: Int) ..])
 
 main :: IO ()
 main = hspec $ do

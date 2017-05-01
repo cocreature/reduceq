@@ -5,7 +5,7 @@ module Reduceq.Parser
   , parseText
   , Result(..)
   , _Success
-  , _errDoc
+  , ErrInfo(..)
   , fundeclParser
   ) where
 

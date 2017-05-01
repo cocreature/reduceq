@@ -5,7 +5,6 @@ module Reduceq.Pretty
 
 import           Reduceq.Prelude
 
-import qualified Data.Text as Text
 import           Text.PrettyPrint.Leijen.Text
 
 import           Reduceq.CoqAST
