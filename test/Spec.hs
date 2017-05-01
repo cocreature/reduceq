@@ -1,7 +1,7 @@
 import           Reduceq.Prelude
 
+import           Control.Lens
 import           Test.Hspec
-
 import qualified Text.PrettyPrint.ANSI.Leijen as Pretty
 
 import           Reduceq.AST as AST
@@ -25,6 +25,12 @@ functionParseTests =
     , FunctionDeclaration
         "f"
         [TypedVar "x" TyInt]
+        TyInt
+        [Return (IntBinop IAdd (VarRef (mkVarId "x")) (IntLit 1))])
+  , ( "fn f(x : Int, y : Int) -> Int { return (x + 1); }"
+    , FunctionDeclaration
+        "f"
+        [TypedVar "x" TyInt, TypedVar "y" TyInt]
         TyInt
         [Return (IntBinop IAdd (VarRef (mkVarId "x")) (IntLit 1))])
   , ( "fn f (x : Int) -> Int { x := x + 1; return (x + 1); }"
@@ -71,45 +77,26 @@ functionParseTests =
         ])
   ]
 
-testTransform :: AST.FunDecl -> Text -> Expectation
+testTransform :: Text -> Text -> Expectation
 testTransform original expected =
-  displayDoc (pprintExpr (runTransformM (transformDecl original))) `shouldBe`
-  expected
+  case parseText fundeclParser mempty original of
+    Success parsedOriginal ->
+      displayDoc (pprintExpr (runTransformM (transformDecl parsedOriginal))) `shouldBe`
+      expected
+    Failure errInfo ->
+      (expectationFailure .
+       flip Pretty.displayS mempty . Pretty.renderPretty 0.8 80 . _errDoc)
+        errInfo
 
-transformTests :: [(AST.FunDecl,Text)]
+transformTests :: [(Text,Text)]
 transformTests =
-  [ ( AST.FunctionDeclaration
-        "f"
-        [AST.TypedVar "x" AST.TyInt, AST.TypedVar "y" AST.TyInt]
-        AST.TyInt
-        [AST.Return (AST.VarRef "x")]
+  [ ( "fn f(x : Int, y : Int) -> Int { return (x); }"
     , "(fun _ : Int. (fun _ : Int. v1))")
-  , ( AST.FunctionDeclaration
-        "f"
-        [AST.TypedVar "x" AST.TyInt, AST.TypedVar "y" AST.TyInt]
-        AST.TyInt
-        [AST.Return (AST.VarRef "y")]
+  , ( "fn f(x : Int, y : Int) -> Int { return (y); }"
     , "(fun _ : Int. (fun _ : Int. v0))")
-  , ( AST.FunctionDeclaration
-        "f"
-        [AST.TypedVar "x" AST.TyInt, AST.TypedVar "y" AST.TyInt]
-        AST.TyInt
-        [ AST.Assgn
-            (AST.VarLoc "x")
-            (AST.IntBinop AST.IAdd (AST.VarRef "y") (AST.IntLit 1))
-        , AST.Return (AST.VarRef "x")
-        ]
+  , ( "fn f(x : Int, y : Int) -> Int { x := y + 1; return (x); }"
     , "(fun _ : Int. (fun _ : Int. ((fun _ : Int. v0) (v0 + 1))))")
-  , ( AST.FunctionDeclaration
-        "f"
-        [AST.TypedVar "x" AST.TyInt]
-        AST.TyInt
-        [ AST.If
-            (AST.IntComp AST.ILt (AST.VarRef "x") (AST.IntLit 0))
-            [AST.Assgn (AST.VarLoc "x") (AST.IntLit 0)]
-            Nothing
-        , AST.Return (AST.VarRef "x")
-        ]
+  , ( "fn f(x : Int) -> Int { if (x < 0) { x := 0; } return (x); }"
     , "(fun _ : Int. ((fun _ : Int. v0) (if (v0 < 0) ((fun _ : Int. v0) 0) v0)))")
   ]
 
