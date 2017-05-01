@@ -63,6 +63,8 @@ data Expr
   | VarRef !VarId
   | IntLit !Integer
   | Pair !Expr !Expr
+  | Inl !Expr
+  | Inr !Expr
   | Unit
   deriving (Show, Eq, Ord)
 

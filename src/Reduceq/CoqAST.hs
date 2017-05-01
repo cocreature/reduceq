@@ -55,6 +55,10 @@ data Expr
   | IntComp IntComp
             Expr
             Expr
+  | Iter Expr Expr -- The first argument is a function representing
+                   -- the loop body and the second argument is the
+                   -- initial value
+  | Unit
   deriving (Show, Eq, Ord, Data, Typeable)
 
 instance Plated Expr
@@ -75,10 +79,15 @@ liftVarsAbove m n e = go e
     go (Inr x) = Inr (go x)
     go (Case c x y) =
       Case (go c) (liftVarsAbove (succ m) n x) (liftVarsAbove (succ m) n y)
+    go lit@(IntLit _) = lit
+    go (If cond x y) = If (go cond) (go x) (go y)
+    go (IntBinop op x y) = IntBinop op (go x) (go y)
+    go (IntComp comp x y) = IntComp comp (go x) (go y)
+    go Unit = Unit
+    go (Iter body init) = Iter (go body) (go init)
 
 shiftVars :: Expr -> Expr
 shiftVars = liftVarsAbove 0 1
-
 
 substAt :: VarId -> Expr -> Expr -> Expr
 substAt id substitute e = go e
@@ -103,6 +112,8 @@ substAt id substitute e = go e
     go (IntComp comp x y) = IntComp comp (go x) (go y)
     go lit@(IntLit _) = lit
     go (If cond ifTrue ifFalse) = If (go cond) (go ifTrue) (go ifFalse)
+    go Unit = Unit
+    go (Iter body init) = Iter (go body) (go init)
 
 betaReduce :: Expr -> Expr
 betaReduce =

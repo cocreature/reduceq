@@ -29,7 +29,7 @@ pprintExpr :: Expr -> Doc
 pprintExpr (Var (VarId id)) = text ("v" <> show id)
 pprintExpr (IntLit i)
   | i >= 0 = integer i
-  | i < 0 = parens (integer i)
+  | otherwise = parens (integer i)
 pprintExpr (App f x) = parens (pprintExpr f <+> pprintExpr x)
 pprintExpr (Abs ty body) = parens ("fun _ :" <+> pprintTy ty <> "." <+> pprintExpr body)
 pprintExpr (Fst x) = parens ("fst" <+> pprintExpr x)
@@ -41,6 +41,11 @@ pprintExpr (IntBinop op x y) =
   parens (pprintExpr x <+> pprintOp op <+> pprintExpr y)
 pprintExpr (IntComp comp x y) =
   parens (pprintExpr x <+> pprintComp comp <+> pprintExpr y)
+pprintExpr (Iter f x) =
+  parens ("iter" <+> pprintExpr f <+> pprintExpr x)
+pprintExpr (Inl x) = parens ("inl" <+> pprintExpr x)
+pprintExpr (Inr x) = parens ("inr" <+> pprintExpr x)
+pprintExpr Unit = "()"
 
 displayDoc :: Doc -> Text
 displayDoc = displayTStrict . renderPretty 0.8 80

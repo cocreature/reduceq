@@ -80,10 +80,20 @@ tupleType vars =
     [ty] -> transformTy ty
     tys -> foldr1 CoqAST.TyProd (map transformTy tys)
 
+varsAsTuple :: [AST.TypedVar] -> TransformM CoqAST.Expr
+varsAsTuple vars =
+  case map AST.varName vars of
+    [] -> pure CoqAST.Unit
+    [var] -> varRef var
+    vars' -> foldr1 CoqAST.Pair <$> (mapM varRef vars')
+
 withVarsAsTuple :: [AST.TypedVar]
                 -> TransformM CoqAST.Expr
                 -> TransformM CoqAST.Expr
-withVarsAsTuple vars = local (Map.union (refAsTuple (map AST.varName vars))). fmap (CoqAST.Abs (tupleType (map AST.varType vars)))
+withVarsAsTuple vars =
+  local
+    (Map.union (refAsTuple (map AST.varName vars)) . Map.map CoqAST.shiftVars) .
+  fmap (CoqAST.Abs (tupleType (map AST.varType vars)))
 
 transformStmts :: [AST.Stmt] -> TransformM CoqAST.Expr
 transformStmts [] = panic "Missing return statement"
@@ -102,6 +112,18 @@ transformStmts (AST.If cond ifTrue ifFalse:stmts) = do
   CoqAST.App <$> withVarsAsTuple assignments (transformStmts stmts) <*>
     (CoqAST.If <$> transformExpr cond <*> transformStmts ifTrue' <*>
      transformStmts ifFalse')
+transformStmts (AST.While cond body:stmts) = do
+  assignments <- Set.toList <$> (collectAssgns body)
+  let retModified = AST.Return (AST.Inr (toTuple assignments))
+      body' = body ++ [retModified]
+  coqInit <- varsAsTuple assignments
+  coqBody <-
+    withVarsAsTuple
+      assignments
+      (CoqAST.If <$> transformExpr cond <*> transformStmts body' <*>
+       pure (CoqAST.Inl CoqAST.Unit))
+  stmts' <- withVarsAsTuple assignments (transformStmts stmts)
+  pure (CoqAST.App stmts' (CoqAST.Iter coqBody coqInit))
 
 transformExpr :: AST.Expr -> TransformM CoqAST.Expr
 transformExpr (AST.VarRef id) = varRef id
@@ -112,6 +134,9 @@ transformExpr (AST.IntComp comp arg1 arg2) =
   CoqAST.IntComp comp <$> transformExpr arg1 <*> transformExpr arg2
 transformExpr (AST.Pair x y) =
   CoqAST.Pair <$> transformExpr x <*> transformExpr y
+transformExpr (AST.Inl x) = CoqAST.Inl <$> transformExpr x
+transformExpr (AST.Inr x) = CoqAST.Inr <$> transformExpr x
+transformExpr AST.Unit = pure CoqAST.Unit
 
 transformTy :: AST.Ty -> CoqAST.Ty
 transformTy AST.TyInt = CoqAST.TyInt
