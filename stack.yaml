@@ -37,6 +37,12 @@ resolver: lts-8.12
 # will not be run. This is useful for tweaking upstream packages.
 packages:
 - '.'
+- location:
+    git: https://github.com/quchen/prettyprinter.git
+    commit: d86742aa162022d5411051115d2bb9b399c67147
+  subdirs:
+    - wl-pprint
+  extra-dep: true
 # Dependency packages to be pulled from upstream that are not in the resolver
 # (e.g., acme-missiles-0.3)
 extra-deps: []

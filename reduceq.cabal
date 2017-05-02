@@ -31,7 +31,7 @@ library
                      , text
                      , trifecta
                      , unordered-containers
-                     , wl-pprint-text
+                     , wl-pprint
   default-language:    Haskell2010
   default-extensions:  DeriveDataTypeable, NoImplicitPrelude, OverloadedStrings, TypeApplications
   ghc-options:         -Wall

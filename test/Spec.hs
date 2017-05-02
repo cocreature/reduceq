@@ -82,7 +82,7 @@ testTransform :: Text -> Text -> Expectation
 testTransform original expected =
   case parseText fundeclParser mempty original of
     Success parsedOriginal ->
-      displayDoc (pprintExpr (runTransformM (transformDecl parsedOriginal))) `shouldBe`
+      displayCompact (pprintExpr (runTransformM (transformDecl parsedOriginal))) `shouldBe`
       expected
     Failure errInfo -> parseError errInfo
 
@@ -106,7 +106,7 @@ testReducedTransform :: Text -> Text -> Expectation
 testReducedTransform original expected =
   case parseText fundeclParser mempty original of
     Success parsedOriginal ->
-      displayDoc
+      displayCompact
         (pprintExpr (betaReduce (runTransformM (transformDecl parsedOriginal)))) `shouldBe`
       expected
     Failure errInfo -> parseError errInfo

@@ -1,13 +1,15 @@
 module Reduceq.Pretty
   ( displayDoc
+  , displayCompact
   , pprintExpr
   ) where
 
-import           Reduceq.Prelude
+import Reduceq.Prelude
 
-import           Text.PrettyPrint.Leijen.Text
+import Data.Text.Prettyprint.Doc hiding ((<>))
+import Data.Text.Prettyprint.Doc.Render.Text
 
-import           Reduceq.CoqAST
+import Reduceq.CoqAST
 
 pprintTy :: Ty -> Doc
 pprintTy TyInt = "Int"
@@ -26,17 +28,18 @@ pprintComp ILt = "<"
 pprintComp IGt = ">"
 
 pprintExpr :: Expr -> Doc
-pprintExpr (Var (VarId id)) = text ("v" <> show id)
+pprintExpr (Var (VarId id)) = pretty @Text ("v" <> show id)
 pprintExpr (IntLit i)
-  | i >= 0 = integer i
-  | otherwise = parens (integer i)
-pprintExpr (App f x) = parens (pprintExpr f <+> pprintExpr x)
-pprintExpr (Abs ty body) = parens ("fun _ :" <+> pprintTy ty <> "." <+> pprintExpr body)
+  | i >= 0 = pretty i
+  | otherwise = parens (pretty i)
+pprintExpr (App f x) = (parens . align . sep) [pprintExpr f, pprintExpr x]
+pprintExpr (Abs ty body) =
+  (parens . hang 2 . sep) ["fun _ :" <+> pprintTy ty <> ".", pprintExpr body]
 pprintExpr (Fst x) = parens ("fst" <+> pprintExpr x)
 pprintExpr (Snd x) = parens ("snd" <+> pprintExpr x)
 pprintExpr (Pair x y) = parens (pprintExpr x <> "," <+> pprintExpr y)
 pprintExpr (If cond ifTrue ifFalse) =
-  parens ("if" <+> pprintExpr cond <+> pprintExpr ifTrue <+> pprintExpr ifFalse)
+  (parens . hang 3 . sep) ["if" <+> pprintExpr cond, pprintExpr ifTrue, pprintExpr ifFalse]
 pprintExpr (IntBinop op x y) =
   parens (pprintExpr x <+> pprintOp op <+> pprintExpr y)
 pprintExpr (IntComp comp x y) =
@@ -48,4 +51,9 @@ pprintExpr (Inr x) = parens ("inr" <+> pprintExpr x)
 pprintExpr Unit = "()"
 
 displayDoc :: Doc -> Text
-displayDoc = displayTStrict . renderPretty 0.8 80
+displayDoc = renderStrict . layoutPretty defaultLayoutOptions
+
+displayCompact :: Doc -> Text
+displayCompact =
+  renderStrict .
+  layoutPretty (defaultLayoutOptions {layoutPageWidth = Unbounded})
