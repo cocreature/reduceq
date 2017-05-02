@@ -21,7 +21,8 @@ library
                        Reduceq.Prelude
                        Reduceq.Pretty
                        Reduceq.Transform
-  build-depends:       base >= 4.9 && < 5
+  build-depends:       ansi-wl-pprint
+                     , base >= 4.9 && < 5
                      , containers
                      , lens
                      , parsers
@@ -41,6 +42,7 @@ executable reduceq-exe
   ghc-options:         -Wall -threaded -rtsopts -with-rtsopts=-N
   build-depends:       base
                      , lens
+                     , optparse-applicative
                      , reduceq
   default-language:    Haskell2010
   default-extensions:  NoImplicitPrelude, OverloadedStrings, TypeApplications
@@ -49,8 +51,7 @@ test-suite reduceq-test
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
   main-is:             Spec.hs
-  build-depends:       ansi-wl-pprint
-                     , base
+  build-depends:       base
                      , hspec
                      , lens
                      , reduceq

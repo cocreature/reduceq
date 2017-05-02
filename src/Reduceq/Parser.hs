@@ -7,6 +7,7 @@ module Reduceq.Parser
   , _Success
   , ErrInfo(..)
   , fundeclParser
+  , renderParseError
   ) where
 
 import           Reduceq.Prelude
@@ -17,6 +18,7 @@ import           Data.Semigroup.Reducer
 import           Text.Parser.Expression
 import           Text.Parser.LookAhead (LookAheadParsing)
 import           Text.Parser.Token.Highlight
+import qualified Text.PrettyPrint.ANSI.Leijen as Pretty
 import qualified Text.Trifecta as Trifecta
 import           Text.Trifecta hiding (Parser)
 import           Text.Trifecta.Delta (Delta(..))
@@ -167,3 +169,7 @@ fundeclParser =
       body <- braces (many stmtParser)
       pure (FunctionDeclaration name args returnTy body)) <?>
   "function declaration"
+
+renderParseError :: ErrInfo -> Text
+renderParseError =
+  toS . flip Pretty.displayS mempty . Pretty.renderPretty 0.8 80 . _errDoc

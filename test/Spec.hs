@@ -1,7 +1,6 @@
 import           Reduceq.Prelude
 
 import           Test.Hspec
-import qualified Text.PrettyPrint.ANSI.Leijen as Pretty
 
 import           Reduceq.AST as AST
 import           Reduceq.CoqAST (betaReduce)
@@ -10,7 +9,7 @@ import           Reduceq.Pretty
 import           Reduceq.Transform
 
 parseError :: ErrInfo -> Expectation
-parseError = expectationFailure . flip Pretty.displayS mempty . Pretty.renderPretty 0.8 80 . _errDoc
+parseError = expectationFailure . toS . renderParseError
 
 expectParseResult :: (Show a, Eq a) => Parser a -> Text -> a -> Expectation
 expectParseResult parser input result =
