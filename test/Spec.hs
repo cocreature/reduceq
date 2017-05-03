@@ -82,49 +82,51 @@ testTransform :: Text -> Text -> Expectation
 testTransform original expected =
   case parseText fundeclParser mempty original of
     Success parsedOriginal ->
-      displayCompact (pprintExpr (runTransformM (transformDecl parsedOriginal))) `shouldBe`
+      (displayCompact . runPprintM . pprintExpr . runTransformM . transformDecl)
+        parsedOriginal `shouldBe`
       expected
     Failure errInfo -> parseError errInfo
 
 transformTests :: [(Text,Text)]
 transformTests =
   [ ( "fn f(x : Int, y : Int) -> Int { return (x); }"
-    , "(fun _ : Int. (fun _ : Int. v1))")
+    , "(fun ▢ : Int. (fun ▢ : Int. v1))")
   , ( "fn f(x : Int, y : Int) -> Int { return (y); }"
-    , "(fun _ : Int. (fun _ : Int. v0))")
+    , "(fun ▢ : Int. (fun ▢ : Int. v0))")
   , ( "fn f(x : Int, y : Int) -> Int { x := y + 1; return (x); }"
-    , "(fun _ : Int. (fun _ : Int. ((fun _ : Int. v0) (v0 + 1))))")
+    , "(fun ▢ : Int. (fun ▢ : Int. ((fun ▢ : Int. v0) (v0 + 1))))")
   , ( "fn f(x : Int) -> Int { if (x < 0) { x := 0; } return (x); }"
-    , "(fun _ : Int. ((fun _ : Int. v0) (if (v0 < 0) ((fun _ : Int. v0) 0) v0)))")
+    , "(fun ▢ : Int. ((fun ▢ : Int. v0) (if (v0 < 0) ((fun ▢ : Int. v0) 0) v0)))")
   , ( "fn f() -> Int { x : Int = 1; y : Int = 2; z : Int = 3; if (x < 0) { x := 42; y := 43; } else { z := 47; } return (x+y+z); }"
-    , "((fun _ : Int. ((fun _ : Int. ((fun _ : Int. ((fun _ : Int * Int * Int. (((fst v0) + (fst (snd v0))) + (snd (snd v0)))) (if (v2 < 0) ((fun _ : Int. ((fun _ : Int. (v1, (v0, v2))) 43)) 42) ((fun _ : Int. (v3, (v2, v0))) 47)))) 3)) 2)) 1)")
+    , "((fun ▢ : Int. ((fun ▢ : Int. ((fun ▢ : Int. ((fun ▢ : Int * Int * Int. (((fst v0) + (fst (snd v0))) + (snd (snd v0)))) (if (v2 < 0) ((fun ▢ : Int. ((fun ▢ : Int. (v1, (v0, v2))) 43)) 42) ((fun ▢ : Int. (v3, (v2, v0))) 47)))) 3)) 2)) 1)")
   , ( "fn f(n : Int) -> Int { i : Int = 0; j : Int = 0; while (i < n) { i := i + 1; j := j + 1; } return (j); }"
-    , "(fun _ : Int. ((fun _ : Int. ((fun _ : Int. ((fun _ : Int * Int. (snd v0)) (iter (fun _ : Int * Int. (if ((fst v0) < v3) ((fun _ : Int. ((fun _ : Int. (inr (v1, v0))) ((snd v1) + 1))) ((fst v0) + 1)) (inl ()))) (v1, v0)))) 0)) 0))")
+    , "(fun ▢ : Int. ((fun ▢ : Int. ((fun ▢ : Int. ((fun ▢ : Int * Int. (snd v0)) (iter (fun ▢ : Int * Int. (if ((fst v0) < v3) ((fun ▢ : Int. ((fun ▢ : Int. (inr (v1, v0))) ((snd v1) + 1))) ((fst v0) + 1)) (inl ()))) (v1, v0)))) 0)) 0))")
   ]
 
 testReducedTransform :: Text -> Text -> Expectation
 testReducedTransform original expected =
   case parseText fundeclParser mempty original of
     Success parsedOriginal ->
-      displayCompact
-        (pprintExpr (betaReduce (runTransformM (transformDecl parsedOriginal)))) `shouldBe`
+      (displayCompact .
+       runPprintM . pprintExpr . betaReduce . runTransformM . transformDecl)
+        parsedOriginal `shouldBe`
       expected
     Failure errInfo -> parseError errInfo
 
 reducedTransformTests :: [(Text, Text)]
 reducedTransformTests =
   [ ( "fn f(x : Int, y : Int) -> Int { return (x); }"
-    , "(fun _ : Int. (fun _ : Int. v1))")
+    , "(fun ▢ : Int. (fun ▢ : Int. v1))")
   , ( "fn f(x : Int, y : Int) -> Int { return (y); }"
-    , "(fun _ : Int. (fun _ : Int. v0))")
+    , "(fun ▢ : Int. (fun ▢ : Int. v0))")
   , ( "fn f(x : Int, y : Int) -> Int { x := y + 1; return (x); }"
-    , "(fun _ : Int. (fun _ : Int. ((fun _ : Int. v0) (v0 + 1))))")
+    , "(fun ▢ : Int. (fun ▢ : Int. ((fun ▢ : Int. v0) (v0 + 1))))")
   , ( "fn f(x : Int) -> Int { if (x < 0) { x := 0; } return (x); }"
-    , "(fun _ : Int. ((fun _ : Int. v0) (if (v0 < 0) 0 v0)))")
+    , "(fun ▢ : Int. ((fun ▢ : Int. v0) (if (v0 < 0) 0 v0)))")
   , ( "fn f() -> Int { x : Int = 1; y : Int = 2; z : Int = 3; if (x < 0) { x := 42; y := 43; } else { z := 47; } return (x+y+z); }"
-    , "((fun _ : Int * Int * Int. (((fst v0) + (fst (snd v0))) + (snd (snd v0)))) (if (1 < 0) (42, (43, 3)) (1, (2, 47))))")
+    , "((fun ▢ : Int * Int * Int. (((fst v0) + (fst (snd v0))) + (snd (snd v0)))) (if (1 < 0) (42, (43, 3)) (1, (2, 47))))")
   , ( "fn f(n : Int) -> Int { i : Int = 0; j : Int = 0; while (i < n) { i := i + 1; j := j + 1; } return (j); }"
-    , "(fun _ : Int. ((fun _ : Int * Int. (snd v0)) (iter (fun _ : Int * Int. (if ((fst v0) < v1) ((fun _ : Int. ((fun _ : Int. (inr (v1, v0))) ((snd v1) + 1))) ((fst v0) + 1)) (inl ()))) (0, 0))))")
+    , "(fun ▢ : Int. ((fun ▢ : Int * Int. (snd v0)) (iter (fun ▢ : Int * Int. (if ((fst v0) < v1) ((fun ▢ : Int. ((fun ▢ : Int. (inr (v1, v0))) ((snd v1) + 1))) ((fst v0) + 1)) (inl ()))) (0, 0))))")
   ]
 
 
