@@ -44,6 +44,7 @@ executable reduceq-exe
                      , lens
                      , optparse-applicative
                      , reduceq
+                     , wl-pprint-ansi
   default-language:    Haskell2010
   default-extensions:  NoImplicitPrelude, OverloadedStrings, TypeApplications
 

@@ -1,15 +1,54 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Reduceq.Pretty
   ( displayDoc
   , displayCompact
   , pprintExpr
+  , PprintM
+  , runPprintM
   ) where
 
-import Reduceq.Prelude
+import           Reduceq.Prelude
 
-import Data.Text.Prettyprint.Doc hiding ((<>))
-import Data.Text.Prettyprint.Doc.Render.Text
+import qualified Data.Map as Map
+import           Data.Text.Prettyprint.Doc hiding ((<>))
+import           Data.Text.Prettyprint.Doc.Render.Text
 
-import Reduceq.CoqAST
+import           Reduceq.CoqAST
+
+type VarColors = Map VarId SColor
+
+newtype PprintM a = PprintM (StateT SColor (Reader VarColors) a)
+  deriving (Functor, Applicative, Monad, MonadState SColor, MonadReader VarColors)
+
+runPprintM :: PprintM a -> a
+runPprintM (PprintM a) =
+  runReader (evalStateT a SRed) Map.empty
+
+shiftVarMap :: VarColors -> VarColors
+shiftVarMap = Map.mapKeys succ
+
+withBoundVar :: (SColor -> PprintM a) -> PprintM a
+withBoundVar x = do
+  c <- get
+  put (nextColor c)
+  local (Map.insert (VarId 0) c . shiftVarMap) (x c)
+
+coloredVar :: VarId -> PprintM Doc
+
+coloredVar id@(VarId index) = do
+  c <- asks (Map.lookup id)
+  case c of
+    Nothing -> panic ("Unknown variable index: " <> show id)
+    Just c' -> (pure . color c' . pretty @Text) ("v" <> show index)
+
+nextColor :: SColor -> SColor
+nextColor SRed = SGreen
+nextColor SGreen = SYellow
+nextColor SYellow = SBlue
+nextColor SBlue = SMagenta
+nextColor SMagenta = SCyan
+nextColor SCyan = SRed
+nextColor _ = panic "Can only cycle between visible colors"
 
 pprintTy :: Ty -> Doc
 pprintTy TyInt = "Int"
@@ -27,28 +66,38 @@ pprintComp IEq = "="
 pprintComp ILt = "<"
 pprintComp IGt = ">"
 
-pprintExpr :: Expr -> Doc
-pprintExpr (Var (VarId id)) = pretty @Text ("v" <> show id)
+pprintExpr :: Expr -> PprintM Doc
+pprintExpr (Var id) = coloredVar id
 pprintExpr (IntLit i)
-  | i >= 0 = pretty i
-  | otherwise = parens (pretty i)
-pprintExpr (App f x) = (parens . align . sep) [pprintExpr f, pprintExpr x]
+  | i >= 0 = pure (pretty i)
+  | otherwise = (pure . parens . pretty) i
+pprintExpr (App f x) =
+  parens . align . sep <$> sequence [pprintExpr f, pprintExpr x]
 pprintExpr (Abs ty body) =
-  (parens . hang 2 . sep) ["fun _ :" <+> pprintTy ty <> ".", pprintExpr body]
-pprintExpr (Fst x) = parens ("fst" <+> pprintExpr x)
-pprintExpr (Snd x) = parens ("snd" <+> pprintExpr x)
-pprintExpr (Pair x y) = parens (pprintExpr x <> "," <+> pprintExpr y)
+  withBoundVar $ \c ->
+    parens . hang 2 . sep <$>
+    sequence
+      [ pure ("fun" <+> color c "▢" <+> ":" <+> pprintTy ty <> ".")
+      , pprintExpr body
+      ]
+pprintExpr (Fst x) = parens . ("fst" <+>) <$> pprintExpr x
+pprintExpr (Snd x) = parens . ("snd" <+>) <$> pprintExpr x
+pprintExpr (Pair x y) =
+  liftA2 (\a b -> parens (a <> "," <+> b)) (pprintExpr x) (pprintExpr y)
 pprintExpr (If cond ifTrue ifFalse) =
-  (parens . hang 3 . sep) ["if" <+> pprintExpr cond, pprintExpr ifTrue, pprintExpr ifFalse]
+  parens . hang 3 . sep <$>
+  sequence
+    [("if" <+>) <$> pprintExpr cond, pprintExpr ifTrue, pprintExpr ifFalse]
 pprintExpr (IntBinop op x y) =
-  parens (pprintExpr x <+> pprintOp op <+> pprintExpr y)
+  parens . hsep <$> sequence [pprintExpr x, pure (pprintOp op), pprintExpr y]
 pprintExpr (IntComp comp x y) =
-  parens (pprintExpr x <+> pprintComp comp <+> pprintExpr y)
+  parens . hsep <$>
+  sequence [pprintExpr x, pure (pprintComp comp), pprintExpr y]
 pprintExpr (Iter f x) =
-  parens ("iter" <+> pprintExpr f <+> pprintExpr x)
-pprintExpr (Inl x) = parens ("inl" <+> pprintExpr x)
-pprintExpr (Inr x) = parens ("inr" <+> pprintExpr x)
-pprintExpr Unit = "()"
+  parens . hsep <$> sequence [pure "iter", pprintExpr f, pprintExpr x]
+pprintExpr (Inl x) = parens . ("inl" <+>) <$> pprintExpr x
+pprintExpr (Inr x) = parens . ("inr" <+>) <$> pprintExpr x
+pprintExpr Unit = pure "()"
 
 displayDoc :: Doc -> Text
 displayDoc = renderStrict . layoutPretty defaultLayoutOptions

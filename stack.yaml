@@ -42,6 +42,7 @@ packages:
     commit: d86742aa162022d5411051115d2bb9b399c67147
   subdirs:
     - wl-pprint
+    - wl-pprint-ansi
   extra-dep: true
 # Dependency packages to be pulled from upstream that are not in the resolver
 # (e.g., acme-missiles-0.3)
