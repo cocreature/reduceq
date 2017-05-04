@@ -127,7 +127,7 @@ stmtParser =
   where
     ret =
       (do reserve varId "return"
-          expr <- parens exprParser
+          expr <- exprParser
           _ <- semi
           pure (Return expr)) <?>
       "return statement"
