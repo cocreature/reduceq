@@ -76,6 +76,12 @@ functionParseTests =
             (Just [Assgn (VarLoc "x") (IntLit 3)])
         , Return (VarRef "x")
         ])
+  , ( "fn f(x : [Int]) -> Int { x[0] := 1; return 42; }"
+    , FunctionDeclaration
+        "f"
+        [TypedVar "x" (TyArr TyInt)]
+        TyInt
+        [Assgn (ArrLoc "x" (IntLit 0)) (IntLit 1), Return (IntLit 42)])
   ]
 
 testTransform :: Text -> Text -> Expectation

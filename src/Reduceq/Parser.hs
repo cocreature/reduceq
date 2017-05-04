@@ -119,7 +119,12 @@ exprParser = buildExpressionParser table term
     intCompBinary name op = Infix (IntComp op <$ reserve varOp name) AssocLeft
 
 assgnLocParser :: Parser AssgnLocation
-assgnLocParser = VarLoc <$> ident varId
+assgnLocParser = do
+  name <- ident varId
+  index <- optional (brackets exprParser)
+  case index of
+    Nothing -> pure (VarLoc name)
+    Just i -> pure (ArrLoc name i)
 
 stmtParser :: Parser Stmt
 stmtParser =

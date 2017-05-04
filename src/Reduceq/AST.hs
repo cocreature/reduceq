@@ -70,8 +70,8 @@ data Expr
 
 data AssgnLocation
   = VarLoc !VarId
-  | ArrayEl !AssgnLocation
-            !AssgnLocation
+  | ArrLoc !VarId
+           !Expr
   deriving (Show, Eq, Ord)
 
 data Stmt
