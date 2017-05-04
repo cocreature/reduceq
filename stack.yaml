@@ -39,7 +39,7 @@ packages:
 - '.'
 - location:
     git: https://github.com/quchen/prettyprinter.git
-    commit: d86742aa162022d5411051115d2bb9b399c67147
+    commit: c22ea3a7c01fb2e65d6895c628dd46f598e5a365
   subdirs:
     - wl-pprint
     - wl-pprint-ansi
