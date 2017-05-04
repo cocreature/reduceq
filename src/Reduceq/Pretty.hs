@@ -55,6 +55,7 @@ pprintTy TyInt = "Int"
 pprintTy TyBool = "Bool"
 pprintTy TyUnit = "()"
 pprintTy (TyProd x y) = pprintTy x <+> "*" <+> pprintTy y
+pprintTy (TyArr t) = brackets (pprintTy t)
 
 pprintOp :: IntBinop -> Doc a
 pprintOp IAdd = "+"

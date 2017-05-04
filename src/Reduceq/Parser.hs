@@ -97,7 +97,7 @@ tyId =
   }
 
 tyParser :: Parser Ty
-tyParser = TyInt <$ reserve tyId "Int"
+tyParser = TyInt <$ reserve tyId "Int" <|> TyArr <$> brackets tyParser
 
 tyVarParser :: Parser TypedVar
 tyVarParser = do

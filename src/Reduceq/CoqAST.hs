@@ -28,6 +28,7 @@ data Ty
   | TyUnit
   | TyProd Ty
            Ty
+  | TyArr Ty
   deriving (Show, Eq, Ord, Data, Typeable)
 
 data Expr

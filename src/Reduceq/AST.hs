@@ -28,7 +28,7 @@ data Ty
   = TyInt
   | TyReal
   | TyBool
-  | TyList !Ty
+  | TyArr !Ty
   deriving (Show, Eq, Ord)
 
 data TypedVar = TypedVar

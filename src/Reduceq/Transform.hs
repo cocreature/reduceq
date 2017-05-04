@@ -13,7 +13,7 @@ import qualified Data.Set as Set
 import qualified Reduceq.AST as AST
 import qualified Reduceq.CoqAST as CoqAST
 
-type VarContext = Map AST.VarId CoqAST.Expr
+type VarContext = Map AST.VarId (CoqAST.Expr, AST.Ty)
 
 newtype TransformM a =
   TransformM (Reader VarContext a)
@@ -26,7 +26,8 @@ newtype TransformM a =
 withBoundVar :: AST.TypedVar -> TransformM CoqAST.Expr -> TransformM CoqAST.Expr
 withBoundVar (AST.TypedVar name ty) =
   local
-    (Map.insert name (CoqAST.Var $ CoqAST.VarId 0) . Map.map CoqAST.shiftVars) .
+    (Map.insert name (CoqAST.Var $ CoqAST.VarId 0, ty) .
+     Map.map (first CoqAST.shiftVars)) .
   fmap (CoqAST.Abs (transformTy ty))
 
 varRef :: AST.VarId -> TransformM CoqAST.Expr
@@ -34,7 +35,7 @@ varRef id = do
   expr <- asks (Map.lookup id)
   case expr of
     Nothing -> panic ("Unknown variable identifier: " <> show id)
-    Just e -> pure e
+    Just (e, _) -> pure e
 
 runTransformM :: TransformM a -> a
 runTransformM (TransformM a) = runReader a Map.empty
@@ -45,7 +46,11 @@ transformDecl (AST.FunctionDeclaration _ args _ body) =
 
 transformLoc :: AST.AssgnLocation -> TransformM AST.TypedVar
 -- TODO figure out the correct type instead of defaulting to TyInt
-transformLoc (AST.VarLoc id) = return (AST.TypedVar id AST.TyInt)
+transformLoc (AST.VarLoc id) = do
+  expr <- asks (Map.lookup id)
+  case expr of
+    Nothing -> panic ("Unknown variable identifier: " <> show id)
+    Just (_, ty) -> pure (AST.TypedVar id ty)
 
 collectAssgns :: [AST.Stmt] -> TransformM (Set AST.TypedVar)
 collectAssgns = fmap mconcat . mapM collectAssgns'
@@ -60,16 +65,17 @@ toTuple vars =
     [var] -> var
     vars' -> foldr1 AST.Pair vars'
 
-refAsTuple :: [AST.VarId] -> Map AST.VarId CoqAST.Expr
+refAsTuple :: [AST.TypedVar] -> VarContext
 refAsTuple vars =
   case vars of
     [] -> Map.empty
-    [var] -> Map.singleton var tupleRef
+    [AST.TypedVar id ty] -> Map.singleton id (tupleRef, ty)
     vars' ->
       let (last':init') =
             (reverse . take (length vars') . iterate CoqAST.Snd) tupleRef
           refs = reverse (last' : map CoqAST.Fst init')
-      in Map.fromList (zip vars' refs)
+      in Map.fromList
+           (zipWith (\(AST.TypedVar id ty) ref -> (id, (ref, ty))) vars' refs)
   where
     tupleRef = CoqAST.Var (CoqAST.VarId 0)
 
@@ -91,8 +97,7 @@ withVarsAsTuple :: [AST.TypedVar]
                 -> TransformM CoqAST.Expr
                 -> TransformM CoqAST.Expr
 withVarsAsTuple vars =
-  local
-    (Map.union (refAsTuple (map AST.varName vars)) . Map.map CoqAST.shiftVars) .
+  local (Map.union (refAsTuple vars) . Map.map (first CoqAST.shiftVars)) .
   fmap (CoqAST.Abs (tupleType (map AST.varType vars)))
 
 transformStmts :: [AST.Stmt] -> TransformM CoqAST.Expr
@@ -140,3 +145,4 @@ transformExpr AST.Unit = pure CoqAST.Unit
 
 transformTy :: AST.Ty -> CoqAST.Ty
 transformTy AST.TyInt = CoqAST.TyInt
+transformTy (AST.TyArr ty) = CoqAST.TyArr (transformTy ty)
