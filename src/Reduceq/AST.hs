@@ -54,15 +54,23 @@ data Expr
   = IntBinop !IntBinop
              !Expr
              !Expr
-  | IntComp !IntComp !Expr !Expr
+  | IntComp !IntComp
+            !Expr
+            !Expr
   | VarRef !VarId
   | IntLit !Integer
-  | Pair !Expr !Expr
+  | Pair !Expr
+         !Expr
   | Inl !Expr
   | Inr !Expr
-  | Set !Expr !Expr !Expr -- Set array index val
-  | Read !Expr !Expr -- Read array index
+  | Set !Expr
+        !Expr
+        !Expr -- Set array index val
+  | Read !Expr
+         !Expr -- Read array index
   | Unit
+  | Call !Expr
+         ![Expr]
   deriving (Show, Eq, Ord)
 
 data Stmt

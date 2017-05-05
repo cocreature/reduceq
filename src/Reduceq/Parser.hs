@@ -102,7 +102,7 @@ exprParser = buildExpressionParser table term
   where
     term = choice [parens exprParser, VarRef <$> identifier, IntLit <$> natural]
     table =
-      [ [Postfix arrayRead]
+      [ [Postfix arrayRead, Postfix functionCall]
       , [intBinary "*" IMul]
       , [intBinary "+" IAdd, intBinary "-" ISub]
       , [intCompBinary "==" IEq, intCompBinary "<" ILt, intCompBinary ">" IGt]
@@ -112,6 +112,9 @@ exprParser = buildExpressionParser table term
     arrayRead = do
       index <- brackets exprParser
       pure (\arr -> Read arr index)
+    functionCall = do
+      args <- parens (exprParser `sepBy` comma)
+      pure (\name -> Call name args)
 
 -- | This is only used in the parser. We transform assignments to an
 -- array element to assignments to the array itself via set operations

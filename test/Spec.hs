@@ -93,6 +93,17 @@ functionParseTests =
         [ Assgn "n" (Set (VarRef "n") (IntLit 0) (IntLit 1))
         , Return (Read (VarRef "n") (IntLit 0))
         ])
+  , ( "fn f () -> Int {\n\
+     \  x : Int = g(1);\n\
+     \  return g(x, 2, 3);\n\
+     \}"
+    , FunctionDeclaration
+        "f"
+        []
+        TyInt
+        [ VarDecl (TypedVar "x" TyInt) (Call (VarRef "g") [IntLit 1])
+        , Return (Call (VarRef "g") [VarRef "x", IntLit 2, IntLit 3])
+        ])
   ]
 
 testTransform :: Text -> Text -> Expectation
