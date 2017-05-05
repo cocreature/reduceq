@@ -2,12 +2,14 @@
 module Reduceq.Transform
   ( runTransformM
   , transformDecl
+  , transformDecls
   , TransformError(..)
   , showTransformError
   ) where
 
 import           Reduceq.Prelude
 
+import qualified Data.List.NonEmpty as NonEmpty
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Set (Set)
@@ -58,6 +60,19 @@ runTransformM (TransformM a) = runReader (runExceptT a) Map.empty
 transformDecl :: AST.FunDecl -> TransformM CoqAST.Expr
 transformDecl (AST.FunctionDeclaration _ args _ body) =
   foldr (.) identity (map withBoundVar args) (transformStmts body)
+
+transformDecls :: NonEmpty AST.FunDecl -> TransformM CoqAST.Expr
+transformDecls decls
+ -- declarations can only reference earlier declarations
+ =
+  foldr
+    (\decl acc ->
+       CoqAST.App <$>
+       withBoundVar (AST.TypedVar (AST.funName decl) (AST.funDeclTy decl)) acc <*>
+       (transformDecl decl))
+    (transformDecl (NonEmpty.last decls))
+    (NonEmpty.init decls)
+
 
 transformAssgnLoc :: AST.VarId -> TransformM AST.TypedVar
 transformAssgnLoc id = do
@@ -160,9 +175,16 @@ transformExpr (AST.Set arr index val) =
 transformExpr (AST.Read arr index) =
   CoqAST.Read <$> transformExpr arr <*> transformExpr index
 transformExpr AST.Unit = pure CoqAST.Unit
+transformExpr (AST.Call fun args) =
+  foldr
+    (\arg f -> CoqAST.App <$> f <*> transformExpr arg)
+    (transformExpr fun)
+    args
 
 transformTy :: AST.Ty -> CoqAST.Ty
 transformTy AST.TyInt = CoqAST.TyInt
 transformTy AST.TyReal = CoqAST.TyReal
 transformTy AST.TyBool = CoqAST.TyBool
 transformTy (AST.TyArr ty) = CoqAST.TyArr (transformTy ty)
+transformTy (AST.TyFun args retTy) =
+  foldr CoqAST.TyFun (transformTy retTy) (map transformTy args)

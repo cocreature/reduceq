@@ -9,6 +9,7 @@ module Reduceq.AST
   , IntBinop(..)
   , Stmt(..)
   , IntComp(..)
+  , funDeclTy
   ) where
 
 import Reduceq.Prelude
@@ -24,6 +25,8 @@ data Ty
   | TyReal
   | TyBool
   | TyArr !Ty
+  | TyFun ![Ty]
+          !Ty
   deriving (Show, Eq, Ord)
 
 data TypedVar = TypedVar
@@ -37,6 +40,9 @@ data FunDecl = FunctionDeclaration
   , funReturnType :: !Ty
   , funBody :: ![Stmt]
   } deriving (Show, Eq, Ord)
+
+funDeclTy :: FunDecl -> Ty
+funDeclTy (FunctionDeclaration _ args retTy _) = TyFun (map varType args) retTy
 
 data IntBinop
   = IAdd
@@ -70,7 +76,7 @@ data Expr
          !Expr -- Read array index
   | Unit
   | Call !Expr
-         ![Expr]
+         !(NonEmpty Expr)
   deriving (Show, Eq, Ord)
 
 data Stmt

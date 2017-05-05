@@ -29,15 +29,17 @@ main = do
   CliArgs {argInputFile = inputPath, argOutputFile = outputPath} <-
     execParser cliArgs
   input <- readFile inputPath
-  case parseText fundeclParser mempty input of
-    Success parsedInput -> do
-      let transformed = runTransformM (transformDecl parsedInput)
+  case parseText fileParser mempty input of
+    Success decls -> do
+      traverse_ print decls
+      let transformed = runTransformM (transformDecls decls)
       case transformed of
         Left err -> hPutStrLn stderr (showTransformError err)
         Right transformed' ->
           let reduced = (runPprintM . pprintExpr . betaReduce) transformed'
           in case outputPath of
-               Nothing -> putDoc reduced
+               Nothing ->
+                 putDoc reduced
                Just file -> writeFile file (displayDoc reduced)
     Failure errInfo -> hPutStrLn stderr (renderParseError errInfo)
   where

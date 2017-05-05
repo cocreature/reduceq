@@ -6,6 +6,7 @@ module Reduceq.Parser
   , Result(..)
   , _Success
   , ErrInfo(..)
+  , fileParser
   , fundeclParser
   , renderParseError
   ) where
@@ -14,6 +15,7 @@ import           Reduceq.Prelude
 
 import           Data.Char
 import qualified Data.HashSet as HashSet
+import qualified Data.List.NonEmpty as NonEmpty
 import           Data.Semigroup.Reducer
 import           Text.Parser.Expression
 import           Text.Parser.LookAhead (LookAheadParsing)
@@ -113,7 +115,7 @@ exprParser = buildExpressionParser table term
       index <- brackets exprParser
       pure (\arr -> Read arr index)
     functionCall = do
-      args <- parens (exprParser `sepBy` comma)
+      args <- NonEmpty.fromList <$> parens (exprParser `sepBy1` comma)
       pure (\name -> Call name args)
 
 -- | This is only used in the parser. We transform assignments to an
@@ -182,6 +184,9 @@ fundeclParser =
       body <- braces (many stmtParser)
       pure (FunctionDeclaration name args returnTy body)) <?>
   "function declaration"
+
+fileParser :: Parser (NonEmpty FunDecl)
+fileParser = some1 fundeclParser <* eof
 
 renderParseError :: ErrInfo -> Text
 renderParseError =
