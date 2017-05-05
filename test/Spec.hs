@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedLists #-}
 import           Reduceq.Prelude
 
 import           Test.Hspec
@@ -108,9 +109,9 @@ functionParseTests =
 
 testTransform :: Text -> Text -> Expectation
 testTransform original expected =
-  case parseText fundeclParser mempty original of
-    Success parsedOriginal ->
-      case runTransformM (transformDecl parsedOriginal) of
+  case parseText fileParser mempty original of
+    Success decls ->
+      case runTransformM (transformDecls decls) of
         Left err -> expectationFailure (toS (showTransformError err))
         Right transformed ->
           (displayCompact . runPprintM . pprintExpr) transformed `shouldBe`
@@ -140,9 +141,9 @@ transformTests =
 
 testReducedTransform :: Text -> Text -> Expectation
 testReducedTransform original expected =
-  case parseText fundeclParser mempty original of
-    Success parsedOriginal ->
-      case runTransformM (transformDecl parsedOriginal) of
+  case parseText fileParser mempty original of
+    Success decls ->
+      case runTransformM (transformDecls decls) of
         Left err -> expectationFailure (toS (showTransformError err))
         Right transformed ->
           (displayCompact . runPprintM . pprintExpr . betaReduce) transformed `shouldBe`
@@ -168,6 +169,17 @@ reducedTransformTests =
       \  return n[0];\n\
       \}\n"
     , "(fun ▢ : [Int]. ((fun ▢ : [Int]. (read v0 0)) (set v0 0 1)))")
+  , ( "fn h(x : Int) -> Int {\
+      \  return x;\
+      \}\
+      \fn g(x : Int, y : Int, z : Int) -> Int {\
+      \  return x + y + z;\
+      \}\
+      \fn f () -> Int {\
+      \  x : Int = h(1);\
+      \  return g(x, 2, 3);\
+      \}"
+    , "((fun ▢ : Int → Int. ((fun ▢ : Int → Int → Int → Int. ((fun ▢ : Int. (((v1 3) 2) v0)) (v1 1))) (fun ▢ : Int. (fun ▢ : Int. (fun ▢ : Int. ((v2 + v1) + v0)))))) (fun ▢ : Int. v0))")
   ]
 
 
