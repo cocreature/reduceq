@@ -18,20 +18,25 @@ import           Reduceq.CoqAST
 
 type VarColors = Map VarId Color
 
-newtype PprintM a = PprintM (StateT Color (Reader VarColors) a)
-  deriving (Functor, Applicative, Monad, MonadState Color, MonadReader VarColors)
+newtype PprintM a =
+  PprintM (StateT [Color] (Reader VarColors) a)
+  deriving ( Functor
+           , Applicative
+           , Monad
+           , MonadState [Color]
+           , MonadReader VarColors
+           )
 
 runPprintM :: PprintM a -> a
-runPprintM (PprintM a) =
-  runReader (evalStateT a Red) Map.empty
+runPprintM (PprintM a) = runReader (evalStateT a varIdColors) Map.empty
 
 shiftVarMap :: VarColors -> VarColors
 shiftVarMap = Map.mapKeys succ
 
 withBoundVar :: (Color -> PprintM a) -> PprintM a
 withBoundVar x = do
-  c <- get
-  put (nextColor c)
+  (c:cs) <- get
+  put cs
   local (Map.insert (VarId 0) c . shiftVarMap) (x c)
 
 coloredVar :: VarId -> PprintM (Doc AnsiTerminal)
@@ -41,17 +46,12 @@ coloredVar id@(VarId index) = do
     Nothing -> panic ("Unknown variable index: " <> show id)
     Just c' -> (pure . color c' . pretty @Text) ("v" <> show index)
 
-nextColor :: Color -> Color
-nextColor Red = Green
-nextColor Green = Yellow
-nextColor Yellow = Blue
-nextColor Blue = Magenta
-nextColor Magenta = Cyan
-nextColor Cyan = Red
-nextColor _ = panic "Can only cycle between visible colors"
+varIdColors :: [Color]
+varIdColors = cycle [Red, Green, Yellow, Blue, Magenta, Cyan, Red]
 
 pprintTy :: Ty -> Doc a
 pprintTy TyInt = "Int"
+pprintTy TyReal = "Real"
 pprintTy TyBool = "Bool"
 pprintTy TyUnit = "()"
 pprintTy (TyProd x y) = pprintTy x <+> "*" <+> pprintTy y
