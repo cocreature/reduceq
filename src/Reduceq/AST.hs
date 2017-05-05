@@ -32,7 +32,7 @@ data TypedVar = TypedVar
   } deriving (Show, Eq, Ord)
 
 data FunDecl = FunctionDeclaration
-  { funName :: !Text
+  { funName :: !VarId
   , funArguments :: [TypedVar]
   , funReturnType :: !Ty
   , funBody :: ![Stmt]

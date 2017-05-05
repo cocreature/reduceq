@@ -62,17 +62,8 @@ varId =
   , _styleReservedHighlight = ReservedIdentifier
   }
 
-funId :: TokenParsing m => IdentifierStyle m
-funId =
-  IdentifierStyle
-  { _styleName = "function identifier"
-  , _styleStart = lower
-  , _styleLetter = alphaNum <|> oneOf "_'"
-  , _styleReserved =
-      HashSet.fromList ["fn", "for", "while", "if", "else", "elseif", "return"]
-  , _styleHighlight = Identifier
-  , _styleReservedHighlight = ReservedIdentifier
-  }
+identifier :: Parser VarId
+identifier = ident varId
 
 varOp :: TokenParsing m => IdentifierStyle m
 varOp =
@@ -101,7 +92,7 @@ tyParser = TyInt <$ reserve tyId "Int" <|> TyArr <$> brackets tyParser
 
 tyVarParser :: Parser TypedVar
 tyVarParser = do
-  name <- ident varId
+  name <- identifier
   _ <- colon
   ty <- tyParser
   pure (TypedVar name ty)
@@ -109,8 +100,7 @@ tyVarParser = do
 exprParser :: Parser Expr
 exprParser = buildExpressionParser table term
   where
-    term =
-      choice [parens exprParser, VarRef <$> ident varId, IntLit <$> natural]
+    term = choice [parens exprParser, VarRef <$> identifier, IntLit <$> natural]
     table =
       [ [Postfix arrayRead]
       , [intBinary "*" IMul]
@@ -134,7 +124,7 @@ data AssgnLocation
 
 assgnLocParser :: Parser AssgnLocation
 assgnLocParser = do
-  name <- ident varId
+  name <- identifier
   index <- optional (brackets exprParser)
   case index of
     Nothing -> pure (VarLoc name)
@@ -181,8 +171,8 @@ stmtParser = choice [while, ret, if_, varDecl, assgn] <?> "statement"
 
 fundeclParser :: Parser FunDecl
 fundeclParser =
-  (do reserve funId "fn"
-      name <- ident funId
+  (do reserve varId "fn"
+      name <- identifier
       args <- parens (tyVarParser `sepBy` reserve varOp ",")
       _ <- token (text "->")
       returnTy <- tyParser
