@@ -32,10 +32,13 @@ main = do
   case parseText fundeclParser mempty input of
     Success parsedInput -> do
       let transformed = runTransformM (transformDecl parsedInput)
-          reduced = (runPprintM . pprintExpr . betaReduce) transformed
-      case outputPath of
-        Nothing -> putDoc reduced
-        Just file -> writeFile file (displayDoc reduced)
+      case transformed of
+        Left err -> hPutStrLn stderr (showTransformError err)
+        Right transformed' ->
+          let reduced = (runPprintM . pprintExpr . betaReduce) transformed'
+          in case outputPath of
+               Nothing -> putDoc reduced
+               Just file -> writeFile file (displayDoc reduced)
     Failure errInfo -> hPutStrLn stderr (renderParseError errInfo)
   where
     cliArgs =

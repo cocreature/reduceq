@@ -1,7 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Reduceq.AST
-  ( VarId
-  , mkVarId
+  ( VarId(..)
   , Decl(..)
   , Ty(..)
   , TypedVar(..)
@@ -17,9 +16,6 @@ import Reduceq.Prelude
 import Data.Data
 
 newtype VarId = VarId Text deriving (Show, Eq, Ord, IsString)
-
-mkVarId :: Text -> VarId
-mkVarId = VarId
 
 data Decl = FunDecl !FunDecl deriving (Show, Eq, Ord)
 

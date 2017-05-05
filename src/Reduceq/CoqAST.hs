@@ -24,6 +24,7 @@ newtype VarId =
 
 data Ty
   = TyInt
+  | TyReal
   | TyBool
   | TyUnit
   | TyProd Ty

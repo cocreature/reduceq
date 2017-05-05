@@ -2,6 +2,8 @@
 module Reduceq.Transform
   ( runTransformM
   , transformDecl
+  , TransformError(..)
+  , showTransformError
   ) where
 
 import           Reduceq.Prelude
@@ -15,12 +17,25 @@ import qualified Reduceq.CoqAST as CoqAST
 
 type VarContext = Map AST.VarId (CoqAST.Expr, AST.Ty)
 
+data TransformError
+  = UnknownVariable AST.VarId
+  | MissingReturnStmt
+  deriving (Show, Eq, Ord)
+
+showTransformError :: TransformError -> Text
+showTransformError (UnknownVariable (AST.VarId id)) =
+  "Unknown variable " <> show id <>
+  ". Variables can only be referenced after they have been declared or if they are function parameters"
+showTransformError MissingReturnStmt =
+  "Missing return statement: Each function needs to end with a return statement."
+
 newtype TransformM a =
-  TransformM (Reader VarContext a)
+  TransformM (ExceptT TransformError (Reader VarContext) a)
   deriving ( Functor
            , Applicative
            , Monad
            , MonadReader VarContext
+           , MonadError TransformError
            )
 
 withBoundVar :: AST.TypedVar -> TransformM CoqAST.Expr -> TransformM CoqAST.Expr
@@ -34,11 +49,11 @@ varRef :: AST.VarId -> TransformM CoqAST.Expr
 varRef id = do
   expr <- asks (Map.lookup id)
   case expr of
-    Nothing -> panic ("Unknown variable identifier: " <> show id)
+    Nothing -> throwError (UnknownVariable id)
     Just (e, _) -> pure e
 
-runTransformM :: TransformM a -> a
-runTransformM (TransformM a) = runReader a Map.empty
+runTransformM :: TransformM a -> Either TransformError a
+runTransformM (TransformM a) = runReader (runExceptT a) Map.empty
 
 transformDecl :: AST.FunDecl -> TransformM CoqAST.Expr
 transformDecl (AST.FunctionDeclaration _ args _ body) =
@@ -48,7 +63,7 @@ transformAssgnLoc :: AST.VarId -> TransformM AST.TypedVar
 transformAssgnLoc id = do
   expr <- asks (Map.lookup id)
   case expr of
-    Nothing -> panic ("Unknown variable identifier: " <> show id)
+    Nothing -> throwError (UnknownVariable id)
     Just (_, ty) -> pure (AST.TypedVar id ty)
 
 collectAssgns :: [AST.Stmt] -> TransformM (Set AST.TypedVar)
@@ -100,7 +115,7 @@ withVarsAsTuple vars =
   fmap (CoqAST.Abs (tupleType (map AST.varType vars)))
 
 transformStmts :: [AST.Stmt] -> TransformM CoqAST.Expr
-transformStmts [] = panic "Missing return statement"
+transformStmts [] = throwError MissingReturnStmt
 transformStmts (AST.Return e:_) = transformExpr e
 transformStmts (AST.Assgn loc val:stmts) = do
   loc' <- transformAssgnLoc loc
@@ -148,4 +163,6 @@ transformExpr AST.Unit = pure CoqAST.Unit
 
 transformTy :: AST.Ty -> CoqAST.Ty
 transformTy AST.TyInt = CoqAST.TyInt
+transformTy AST.TyReal = CoqAST.TyReal
+transformTy AST.TyBool = CoqAST.TyBool
 transformTy (AST.TyArr ty) = CoqAST.TyArr (transformTy ty)

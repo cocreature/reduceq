@@ -27,13 +27,13 @@ functionParseTests =
         "f"
         [TypedVar "x" TyInt]
         TyInt
-        [Return (IntBinop IAdd (VarRef (mkVarId "x")) (IntLit 1))])
+        [Return (IntBinop IAdd (VarRef "x") (IntLit 1))])
   , ( "fn f(x : Int, y : Int) -> Int { return (x + 1); }"
     , FunctionDeclaration
         "f"
         [TypedVar "x" TyInt, TypedVar "y" TyInt]
         TyInt
-        [Return (IntBinop IAdd (VarRef (mkVarId "x")) (IntLit 1))])
+        [Return (IntBinop IAdd (VarRef "x") (IntLit 1))])
   , ( "fn f (x : Int) -> Int { x := x + 1; return (x + 1); }"
     , FunctionDeclaration
         "f"
@@ -99,9 +99,11 @@ testTransform :: Text -> Text -> Expectation
 testTransform original expected =
   case parseText fundeclParser mempty original of
     Success parsedOriginal ->
-      (displayCompact . runPprintM . pprintExpr . runTransformM . transformDecl)
-        parsedOriginal `shouldBe`
-      expected
+      case runTransformM (transformDecl parsedOriginal) of
+        Left err -> expectationFailure (toS (showTransformError err))
+        Right transformed ->
+          (displayCompact . runPprintM . pprintExpr) transformed `shouldBe`
+          expected
     Failure errInfo -> parseError errInfo
 
 transformTests :: [(Text,Text)]
@@ -129,10 +131,11 @@ testReducedTransform :: Text -> Text -> Expectation
 testReducedTransform original expected =
   case parseText fundeclParser mempty original of
     Success parsedOriginal ->
-      (displayCompact .
-       runPprintM . pprintExpr . betaReduce . runTransformM . transformDecl)
-        parsedOriginal `shouldBe`
-      expected
+      case runTransformM (transformDecl parsedOriginal) of
+        Left err -> expectationFailure (toS (showTransformError err))
+        Right transformed ->
+          (displayCompact . runPprintM . pprintExpr . betaReduce) transformed `shouldBe`
+          expected
     Failure errInfo -> parseError errInfo
 
 reducedTransformTests :: [(Text, Text)]
