@@ -31,7 +31,6 @@ main = do
   input <- readFile inputPath
   case parseText fileParser mempty input of
     Success decls -> do
-      traverse_ print decls
       let transformed = runTransformM (transformDecls decls)
       case transformed of
         Left err -> hPutStrLn stderr (showTransformError err)
