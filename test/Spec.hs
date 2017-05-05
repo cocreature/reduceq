@@ -39,7 +39,7 @@ functionParseTests =
         "f"
         [TypedVar "x" TyInt]
         TyInt
-        [ Assgn (VarLoc "x") (IntBinop IAdd (VarRef "x") (IntLit 1))
+        [ Assgn "x" (IntBinop IAdd (VarRef "x") (IntLit 1))
         , Return (IntBinop IAdd (VarRef "x") (IntLit 1))
         ])
   , ( "fn f (x : Int) -> Int { y : Int = x + 1; return (y); }"
@@ -58,7 +58,7 @@ functionParseTests =
         [ VarDecl (TypedVar "y" TyInt) (IntLit 0)
         , While
             (IntComp ILt (VarRef "y") (VarRef "x"))
-            [Assgn (VarLoc "y") (IntBinop IAdd (VarRef "y") (IntLit 1))]
+            [Assgn "y" (IntBinop IAdd (VarRef "y") (IntLit 1))]
         , Return (VarRef "y")
         ])
   , ( "fn f (x : Int) -> Int { if (x < 0) { x := 1; } if (x > 0) { x := 2; } else { x := 3; } return (x); }"
@@ -68,12 +68,12 @@ functionParseTests =
         TyInt
         [ If
             (IntComp ILt (VarRef "x") (IntLit 0))
-            [Assgn (VarLoc "x") (IntLit 1)]
+            [Assgn "x" (IntLit 1)]
             Nothing
         , If
             (IntComp IGt (VarRef "x") (IntLit 0))
-            [Assgn (VarLoc "x") (IntLit 2)]
-            (Just [Assgn (VarLoc "x") (IntLit 3)])
+            [Assgn "x" (IntLit 2)]
+            (Just [Assgn "x" (IntLit 3)])
         , Return (VarRef "x")
         ])
   , ( "fn f(x : [Int]) -> Int { x[0] := 1; return 42; }"
@@ -81,7 +81,18 @@ functionParseTests =
         "f"
         [TypedVar "x" (TyArr TyInt)]
         TyInt
-        [Assgn (ArrLoc "x" (IntLit 0)) (IntLit 1), Return (IntLit 42)])
+        [Assgn "x" (Set (VarRef "x") (IntLit 0) (IntLit 1)), Return (IntLit 42)])
+  , ( "fn f(n : [Int]) -> Int {\n\
+      \  n[0] := 1;\n\
+      \  return n[0];\n\
+      \}\n"
+    , FunctionDeclaration
+        "f"
+        [TypedVar "n" (TyArr TyInt)]
+        TyInt
+        [ Assgn "n" (Set (VarRef "n") (IntLit 0) (IntLit 1))
+        , Return (Read (VarRef "n") (IntLit 0))
+        ])
   ]
 
 testTransform :: Text -> Text -> Expectation
@@ -107,6 +118,11 @@ transformTests =
     , "((fun ▢ : Int. ((fun ▢ : Int. ((fun ▢ : Int. ((fun ▢ : Int * Int * Int. (((fst v0) + (fst (snd v0))) + (snd (snd v0)))) (if (v2 < 0) ((fun ▢ : Int. ((fun ▢ : Int. (v1, (v0, v2))) 43)) 42) ((fun ▢ : Int. (v3, (v2, v0))) 47)))) 3)) 2)) 1)")
   , ( "fn f(n : Int) -> Int { i : Int = 0; j : Int = 0; while (i < n) { i := i + 1; j := j + 1; } return (j); }"
     , "(fun ▢ : Int. ((fun ▢ : Int. ((fun ▢ : Int. ((fun ▢ : Int * Int. (snd v0)) (iter (fun ▢ : Int * Int. (if ((fst v0) < v3) ((fun ▢ : Int. ((fun ▢ : Int. (inr (v1, v0))) ((snd v1) + 1))) ((fst v0) + 1)) (inl ()))) (v1, v0)))) 0)) 0))")
+  , ( "fn f(n : [Int]) -> Int {\n\
+      \  n[0] := 1;\n\
+      \  return n[0];\n\
+      \}\n"
+    , "(fun ▢ : [Int]. ((fun ▢ : [Int]. (read v0 0)) (set v0 0 1)))")
   ]
 
 testReducedTransform :: Text -> Text -> Expectation
@@ -133,6 +149,11 @@ reducedTransformTests =
     , "((fun ▢ : Int * Int * Int. (((fst v0) + (fst (snd v0))) + (snd (snd v0)))) (if (1 < 0) (42, (43, 3)) (1, (2, 47))))")
   , ( "fn f(n : Int) -> Int { i : Int = 0; j : Int = 0; while (i < n) { i := i + 1; j := j + 1; } return (j); }"
     , "(fun ▢ : Int. ((fun ▢ : Int * Int. (snd v0)) (iter (fun ▢ : Int * Int. (if ((fst v0) < v1) ((fun ▢ : Int. ((fun ▢ : Int. (inr (v1, v0))) ((snd v1) + 1))) ((fst v0) + 1)) (inl ()))) (0, 0))))")
+  , ( "fn f(n : [Int]) -> Int {\n\
+      \  n[0] := 1;\n\
+      \  return n[0];\n\
+      \}\n"
+    , "(fun ▢ : [Int]. ((fun ▢ : [Int]. (read v0 0)) (set v0 0 1)))")
   ]
 
 

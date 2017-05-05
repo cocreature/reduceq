@@ -98,6 +98,17 @@ pprintExpr (Iter f x) =
   parens . hsep <$> sequence [pure "iter", pprintExpr f, pprintExpr x]
 pprintExpr (Inl x) = parens . ("inl" <+>) <$> pprintExpr x
 pprintExpr (Inr x) = parens . ("inr" <+>) <$> pprintExpr x
+pprintExpr (Set arr index val) =
+  liftA3
+    (\arr' index' val' -> parens ("set" <+> arr' <+> index' <+> val'))
+    (pprintExpr arr)
+    (pprintExpr index)
+    (pprintExpr val)
+pprintExpr (Read arr index) =
+  liftA2
+    (\arr' index' -> parens ("read" <+> arr' <+> index'))
+    (pprintExpr arr)
+    (pprintExpr index)
 pprintExpr Unit = pure "()"
 
 displayDoc :: Doc a -> Text

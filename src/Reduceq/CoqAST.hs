@@ -56,9 +56,15 @@ data Expr
   | IntComp IntComp
             Expr
             Expr
-  | Iter Expr Expr -- The first argument is a function representing
+  | Iter Expr
+         Expr -- The first argument is a function representing
                    -- the loop body and the second argument is the
                    -- initial value
+  | Set Expr
+        Expr
+        Expr -- Set array index val
+  | Read Expr
+         Expr
   | Unit
   deriving (Show, Eq, Ord, Data, Typeable)
 

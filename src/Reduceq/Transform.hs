@@ -44,9 +44,8 @@ transformDecl :: AST.FunDecl -> TransformM CoqAST.Expr
 transformDecl (AST.FunctionDeclaration _ args _ body) =
   foldr (.) identity (map withBoundVar args) (transformStmts body)
 
-transformLoc :: AST.AssgnLocation -> TransformM AST.TypedVar
--- TODO figure out the correct type instead of defaulting to TyInt
-transformLoc (AST.VarLoc id) = do
+transformAssgnLoc :: AST.VarId -> TransformM AST.TypedVar
+transformAssgnLoc id = do
   expr <- asks (Map.lookup id)
   case expr of
     Nothing -> panic ("Unknown variable identifier: " <> show id)
@@ -55,7 +54,7 @@ transformLoc (AST.VarLoc id) = do
 collectAssgns :: [AST.Stmt] -> TransformM (Set AST.TypedVar)
 collectAssgns = fmap mconcat . mapM collectAssgns'
   where
-   collectAssgns' (AST.Assgn loc _) = Set.singleton <$> transformLoc loc
+   collectAssgns' (AST.Assgn loc _) = Set.singleton <$> transformAssgnLoc loc
    collectAssgns' _ = pure (Set.empty)
 
 toTuple :: [AST.TypedVar] -> AST.Expr
@@ -104,7 +103,7 @@ transformStmts :: [AST.Stmt] -> TransformM CoqAST.Expr
 transformStmts [] = panic "Missing return statement"
 transformStmts (AST.Return e:_) = transformExpr e
 transformStmts (AST.Assgn loc val:stmts) = do
-  loc' <- transformLoc loc
+  loc' <- transformAssgnLoc loc
   CoqAST.App <$> withBoundVar loc' (transformStmts stmts) <*> transformExpr val
 transformStmts (AST.VarDecl tyVar val:stmts) =
   CoqAST.App <$> withBoundVar tyVar (transformStmts stmts) <*> transformExpr val
@@ -141,6 +140,10 @@ transformExpr (AST.Pair x y) =
   CoqAST.Pair <$> transformExpr x <*> transformExpr y
 transformExpr (AST.Inl x) = CoqAST.Inl <$> transformExpr x
 transformExpr (AST.Inr x) = CoqAST.Inr <$> transformExpr x
+transformExpr (AST.Set arr index val) =
+  CoqAST.Set <$> transformExpr arr <*> transformExpr index <*> transformExpr val
+transformExpr (AST.Read arr index) =
+  CoqAST.Read <$> transformExpr arr <*> transformExpr index
 transformExpr AST.Unit = pure CoqAST.Unit
 
 transformTy :: AST.Ty -> CoqAST.Ty

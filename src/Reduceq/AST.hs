@@ -9,7 +9,6 @@ module Reduceq.AST
   , Expr(..)
   , IntBinop(..)
   , Stmt(..)
-  , AssgnLocation(..)
   , IntComp(..)
   ) where
 
@@ -65,22 +64,20 @@ data Expr
   | Pair !Expr !Expr
   | Inl !Expr
   | Inr !Expr
+  | Set !Expr !Expr !Expr -- Set array index val
+  | Read !Expr !Expr -- Read array index
   | Unit
-  deriving (Show, Eq, Ord)
-
-data AssgnLocation
-  = VarLoc !VarId
-  | ArrLoc !VarId
-           !Expr
   deriving (Show, Eq, Ord)
 
 data Stmt
   = Return !Expr
-  | Assgn !AssgnLocation
+  | Assgn !VarId
           !Expr
-  | VarDecl !TypedVar !Expr
+  | VarDecl !TypedVar
+            !Expr
   | If !Expr
        ![Stmt]
        !(Maybe [Stmt]) -- ^ optional else block
-  | While !Expr ![Stmt]
+  | While !Expr
+          ![Stmt]
   deriving (Show, Eq, Ord)

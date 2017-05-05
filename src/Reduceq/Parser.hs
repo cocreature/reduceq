@@ -109,14 +109,28 @@ tyVarParser = do
 exprParser :: Parser Expr
 exprParser = buildExpressionParser table term
   where
-    term = choice [parens exprParser, VarRef <$> ident varId, IntLit <$> natural ]
+    term =
+      choice [parens exprParser, VarRef <$> ident varId, IntLit <$> natural]
     table =
-      [ [intBinary "*" IMul]
+      [ [Postfix arrayRead]
+      , [intBinary "*" IMul]
       , [intBinary "+" IAdd, intBinary "-" ISub]
       , [intCompBinary "==" IEq, intCompBinary "<" ILt, intCompBinary ">" IGt]
       ]
     intBinary name op = Infix (IntBinop op <$ reserve varOp name) AssocLeft
     intCompBinary name op = Infix (IntComp op <$ reserve varOp name) AssocLeft
+    arrayRead = do
+      index <- brackets exprParser
+      pure (\arr -> Read arr index)
+
+-- | This is only used in the parser. We transform assignments to an
+-- array element to assignments to the array itself via set operations
+-- so the final AST only contains assignments to variable identifiers.
+data AssgnLocation
+  = VarLoc !VarId
+  | ArrLoc !VarId
+           !Expr
+  deriving (Show, Eq, Ord)
 
 assgnLocParser :: Parser AssgnLocation
 assgnLocParser = do
@@ -127,8 +141,7 @@ assgnLocParser = do
     Just i -> pure (ArrLoc name i)
 
 stmtParser :: Parser Stmt
-stmtParser =
-  choice [while, ret, if_, varDecl, assgn] <?> "statement"
+stmtParser = choice [while, ret, if_, varDecl, assgn] <?> "statement"
   where
     ret =
       (do reserve varId "return"
@@ -141,7 +154,9 @@ stmtParser =
           reserve varOp ":="
           val <- exprParser
           _ <- semi
-          pure (Assgn loc val)) <?>
+          case loc of
+            VarLoc id -> pure (Assgn id val)
+            ArrLoc id index -> pure (Assgn id (Set (VarRef id) index val))) <?>
       "assignment"
     varDecl =
       (do tyVar <- try tyVarParser
