@@ -1,4 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Reduceq.Transform
   ( runTransformM
   , transformDecl

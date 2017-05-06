@@ -1,4 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Reduceq.CoqAST
   ( Expr(..)
   , Ty(..)
