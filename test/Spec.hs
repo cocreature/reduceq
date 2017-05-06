@@ -9,6 +9,8 @@ import           Reduceq.Parser
 import           Reduceq.Pretty
 import           Reduceq.Transform
 
+import           Reduceq.CoqAST.TypingSpec
+
 parseError :: ErrInfo -> Expectation
 parseError = expectationFailure . toS . renderParseError
 
@@ -206,6 +208,7 @@ parserSpec = do
            ("transforms and reduces example " <> show i <> " correctly")
            (uncurry testReducedTransform test))
       (zip reducedTransformTests [(1 :: Int) ..])
+  typeInferenceSpec
 
 main :: IO ()
 main = hspec $ do

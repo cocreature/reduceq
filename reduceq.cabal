@@ -17,6 +17,7 @@ library
   hs-source-dirs:      src
   exposed-modules:     Reduceq.AST
                        Reduceq.CoqAST
+                       Reduceq.CoqAST.Typing
                        Reduceq.Parser
                        Reduceq.Prelude
                        Reduceq.Pretty
@@ -34,7 +35,12 @@ library
                      , wl-pprint
                      , wl-pprint-ansi
   default-language:    Haskell2010
-  default-extensions:  DeriveDataTypeable, GeneralizedNewtypeDeriving, NoImplicitPrelude, OverloadedStrings, TypeApplications
+  default-extensions:  DeriveDataTypeable
+                     , DeriveFunctor
+                     , GeneralizedNewtypeDeriving
+                     , NoImplicitPrelude
+                     , OverloadedStrings
+                     , TypeApplications
   ghc-options:         -Wall
 
 executable reduceq-exe
@@ -53,6 +59,7 @@ test-suite reduceq-test
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
   main-is:             Spec.hs
+  other-modules:       Reduceq.CoqAST.TypingSpec
   build-depends:       base
                      , hspec
                      , lens

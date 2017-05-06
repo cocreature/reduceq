@@ -16,7 +16,7 @@ import qualified Data.Set as Set
 import qualified Reduceq.AST as AST
 import qualified Reduceq.CoqAST as CoqAST
 
-type VarContext = Map AST.VarId (CoqAST.Expr, AST.Ty)
+type VarContext = Map AST.VarId (CoqAST.Expr CoqAST.VarId, AST.Ty)
 
 data TransformError
   = UnknownVariable AST.VarId
@@ -39,14 +39,14 @@ newtype TransformM a =
            , MonadError TransformError
            )
 
-withBoundVar :: AST.TypedVar -> TransformM CoqAST.Expr -> TransformM CoqAST.Expr
+withBoundVar :: AST.TypedVar -> TransformM (CoqAST.Expr CoqAST.VarId) -> TransformM (CoqAST.Expr CoqAST.VarId)
 withBoundVar (AST.TypedVar name ty) =
   local
     (Map.insert name (CoqAST.Var $ CoqAST.VarId 0, ty) .
      Map.map (first CoqAST.shiftVars)) .
   fmap (CoqAST.Abs (transformTy ty))
 
-varRef :: AST.VarId -> TransformM CoqAST.Expr
+varRef :: AST.VarId -> TransformM (CoqAST.Expr CoqAST.VarId)
 varRef id = do
   expr <- asks (Map.lookup id)
   case expr of
@@ -56,11 +56,11 @@ varRef id = do
 runTransformM :: TransformM a -> Either TransformError a
 runTransformM (TransformM a) = runReader (runExceptT a) Map.empty
 
-transformDecl :: AST.FunDecl -> TransformM CoqAST.Expr
+transformDecl :: AST.FunDecl -> TransformM (CoqAST.Expr CoqAST.VarId)
 transformDecl (AST.FunctionDeclaration _ args _ body) =
   foldr (.) identity (map withBoundVar args) (transformStmts body)
 
-transformDecls :: NonEmpty AST.FunDecl -> TransformM CoqAST.Expr
+transformDecls :: NonEmpty AST.FunDecl -> TransformM (CoqAST.Expr CoqAST.VarId)
 transformDecls decls
  -- declarations can only reference earlier declarations
  =
@@ -114,7 +114,7 @@ tupleType vars =
     [ty] -> transformTy ty
     tys -> foldr1 CoqAST.TyProd (map transformTy tys)
 
-varsAsTuple :: [AST.TypedVar] -> TransformM CoqAST.Expr
+varsAsTuple :: [AST.TypedVar] -> TransformM (CoqAST.Expr CoqAST.VarId)
 varsAsTuple vars =
   case map AST.varName vars of
     [] -> pure CoqAST.Unit
@@ -122,13 +122,13 @@ varsAsTuple vars =
     vars' -> foldr1 CoqAST.Pair <$> (mapM varRef vars')
 
 withVarsAsTuple :: [AST.TypedVar]
-                -> TransformM CoqAST.Expr
-                -> TransformM CoqAST.Expr
+                -> TransformM (CoqAST.Expr CoqAST.VarId)
+                -> TransformM (CoqAST.Expr CoqAST.VarId)
 withVarsAsTuple vars =
   local (Map.union (refAsTuple vars) . Map.map (first CoqAST.shiftVars)) .
   fmap (CoqAST.Abs (tupleType (map AST.varType vars)))
 
-transformStmts :: [AST.Stmt] -> TransformM CoqAST.Expr
+transformStmts :: [AST.Stmt] -> TransformM (CoqAST.Expr CoqAST.VarId)
 transformStmts [] = throwError MissingReturnStmt
 transformStmts (AST.Return e:_) = transformExpr e
 transformStmts (AST.Assgn loc val:stmts) = do
@@ -158,7 +158,7 @@ transformStmts (AST.While cond body:stmts) = do
   stmts' <- withVarsAsTuple assignments (transformStmts stmts)
   pure (CoqAST.App stmts' (CoqAST.Iter coqBody coqInit))
 
-transformExpr :: AST.Expr -> TransformM CoqAST.Expr
+transformExpr :: AST.Expr -> TransformM (CoqAST.Expr CoqAST.VarId)
 transformExpr (AST.VarRef id) = varRef id
 transformExpr (AST.IntLit i) = pure (CoqAST.IntLit i)
 transformExpr (AST.IntBinop op arg1 arg2) =

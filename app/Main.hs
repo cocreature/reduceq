@@ -4,6 +4,7 @@ import Reduceq.Prelude
 
 import Data.Text.Prettyprint.Doc.Render.Terminal
 import Reduceq.CoqAST
+import Reduceq.CoqAST.Typing
 import Reduceq.Parser hiding (Parser)
 import Reduceq.Pretty
 import Reduceq.Transform
@@ -35,11 +36,17 @@ main = do
       case transformed of
         Left err -> hPutStrLn stderr (showTransformError err)
         Right transformed' ->
-          let reduced = (runPprintM . pprintExpr . betaReduce) transformed'
+          let reduced = betaReduce transformed'
+              pprinted = runPprintM (pprintExpr reduced)
+              ty = runInferM (inferType reduced)
           in case outputPath of
-               Nothing ->
-                 putDoc reduced
-               Just file -> writeFile file (displayDoc reduced)
+               Nothing -> do
+                 putDoc pprinted
+                 case ty of
+                   Left err -> do
+                     hPutStrLn stderr (showInferError err)
+                   Right ty' -> putDoc (" : " <> pprintTy ty')
+               Just file -> writeFile file (displayDoc pprinted)
     Failure errInfo -> hPutStrLn stderr (renderParseError errInfo)
   where
     cliArgs =

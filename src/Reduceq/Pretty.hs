@@ -2,6 +2,7 @@ module Reduceq.Pretty
   ( displayDoc
   , displayCompact
   , pprintExpr
+  , pprintTy
   , PprintM
   , runPprintM
   ) where
@@ -67,7 +68,7 @@ pprintComp IEq = "="
 pprintComp ILt = "<"
 pprintComp IGt = ">"
 
-pprintExpr :: Expr -> PprintM (Doc AnsiTerminal)
+pprintExpr :: Expr VarId -> PprintM (Doc AnsiTerminal)
 pprintExpr (Var id) = coloredVar id
 pprintExpr (IntLit i)
   | i >= 0 = pure (pretty i)

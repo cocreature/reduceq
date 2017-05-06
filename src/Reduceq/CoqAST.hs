@@ -28,51 +28,54 @@ data Ty
   | TyUnit
   | TyProd Ty
            Ty
+  | TySum Ty
+          Ty
   | TyArr Ty
-  | TyFun Ty Ty
+  | TyFun Ty
+          Ty
   deriving (Show, Eq, Ord, Data, Typeable)
 
-data Expr
-  = Var VarId
+data Expr a
+  = Var a
   | IntLit !Integer
-  | App Expr
-        Expr
+  | App (Expr a)
+        (Expr a)
   | Abs Ty
-        Expr
-  | Fst Expr
-  | Snd Expr
-  | Pair Expr
-         Expr
-  | Inl Expr
-  | Inr Expr
-  | Case Expr
-         Expr
-         Expr
-  | If Expr
-       Expr
-       Expr
+        (Expr a)
+  | Fst (Expr a)
+  | Snd (Expr a)
+  | Pair (Expr a)
+         (Expr a)
+  | Inl (Expr a)
+  | Inr (Expr a)
+  | Case (Expr a)
+         (Expr a)
+         (Expr a)
+  | If (Expr a)
+       (Expr a)
+       (Expr a)
   | IntBinop IntBinop
-             Expr
-             Expr
+             (Expr a)
+             (Expr a)
   | IntComp IntComp
-            Expr
-            Expr
-  | Iter Expr
-         Expr -- The first argument is a function representing
+            (Expr a)
+            (Expr a)
+  | Iter (Expr a)
+         (Expr a) -- The first argument is a function representing
                    -- the loop body and the second argument is the
                    -- initial value
-  | Set Expr
-        Expr
-        Expr -- Set array index val
-  | Read Expr
-         Expr
+  | Set (Expr a)
+        (Expr a)
+        (Expr a) -- Set array index val
+  | Read (Expr a)
+         (Expr a)
   | Unit
   deriving (Show, Eq, Ord, Data, Typeable)
 
-instance Plated Expr
+instance Data a => Plated (Expr a)
 
 -- | Increment free DeBruijn indices greater or equal than m by n
-liftVarsAbove :: Word -> Word -> Expr -> Expr
+liftVarsAbove :: Word -> Word -> Expr VarId -> Expr VarId
 liftVarsAbove m n e = go e
   where
     go (Var (VarId index))
@@ -94,10 +97,10 @@ liftVarsAbove m n e = go e
     go Unit = Unit
     go (Iter body init) = Iter (go body) (go init)
 
-shiftVars :: Expr -> Expr
+shiftVars :: Expr VarId -> Expr VarId
 shiftVars = liftVarsAbove 0 1
 
-substAt :: VarId -> Expr -> Expr -> Expr
+substAt :: VarId -> Expr VarId -> Expr VarId -> Expr VarId
 substAt id substitute e = go e
   where
     go (Var id')
@@ -123,7 +126,7 @@ substAt id substitute e = go e
     go Unit = Unit
     go (Iter body init) = Iter (go body) (go init)
 
-betaReduce :: Expr -> Expr
+betaReduce :: Expr VarId -> Expr VarId
 betaReduce =
   transform $ \e ->
     case e of
