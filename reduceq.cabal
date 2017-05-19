@@ -21,6 +21,7 @@ library
                        Reduceq.Parser
                        Reduceq.Prelude
                        Reduceq.Pretty
+                       Reduceq.PrettyCoq
                        Reduceq.Transform
   build-depends:       ansi-wl-pprint
                      , base >= 4.9 && < 5
