@@ -23,6 +23,8 @@ data Ty
   = TyInt
   | TyReal
   | TyBool
+  | TyProd !Ty !Ty
+  | TySum !Ty !Ty
   | TyArr !Ty
   | TyFun ![Ty]
           !Ty
@@ -71,8 +73,12 @@ data Expr
   | Set !Expr
         !Expr
         !Expr -- Set array index val
+  | SetAtKey !Expr
+             !Expr
+             !Expr -- SetAtKey map key val
   | Read !Expr
          !Expr -- Read array index
+  | ReadAtKey !Expr !Expr -- Read array key
   | Unit
   | Call !Expr
          !(NonEmpty Expr)

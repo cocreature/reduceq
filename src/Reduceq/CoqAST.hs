@@ -67,8 +67,13 @@ data Expr a
   | Set (Expr a)
         (Expr a)
         (Expr a) -- Set array index val
+  | SetAtKey (Expr a)
+             (Expr a)
+             (Expr a) -- Set map key val
   | Read (Expr a)
-         (Expr a)
+         (Expr a) -- Read array index
+  | ReadAtKey (Expr a)
+              (Expr a) -- Read map val
   | Unit
   deriving (Show, Eq, Ord, Data, Typeable)
 
@@ -96,6 +101,10 @@ liftVarsAbove m n e = go e
     go (IntComp comp x y) = IntComp comp (go x) (go y)
     go Unit = Unit
     go (Iter body init) = Iter (go body) (go init)
+    go (Set a i v) = Set (go a) (go i) (go v)
+    go (SetAtKey a k v) = Set (go a) (go k) (go v)
+    go (Read a i) = Read (go a) (go i)
+    go (ReadAtKey a k) = ReadAtKey (go a) (go k)
 
 shiftVars :: Expr VarId -> Expr VarId
 shiftVars = liftVarsAbove 0 1

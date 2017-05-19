@@ -91,6 +91,25 @@ functionParseTests =
         [TypedVar "x" (TyArr TyInt)]
         TyInt
         [Assgn "x" (Set (VarRef "x") (IntLit 0) (IntLit 1)), Return (IntLit 42)])
+  , ( "fn f(x : [Int * Int]) -> Int { x{0} := 1; return 42; }"
+    , FunctionDeclaration
+        "f"
+        [TypedVar "x" (TyArr (TyInt `TyProd` TyInt))]
+        TyInt
+        [ Assgn "x" (SetAtKey (VarRef "x") (IntLit 0) (IntLit 1))
+        , Return (IntLit 42)
+        ])
+  , ( "fn f(n : [Int * Int]) -> Int {\n\
+      \  n{0} := 1;\n\
+      \  return n{0};\n\
+      \}\n"
+    , FunctionDeclaration
+        "f"
+        [TypedVar "n" (TyArr (TyInt `TyProd` TyInt))]
+        TyInt
+        [ Assgn "n" (SetAtKey (VarRef "n") (IntLit 0) (IntLit 1))
+        , Return (ReadAtKey (VarRef "n") (IntLit 0))
+        ])
   , ( "fn f(n : [Int]) -> Int {\n\
       \  n[0] := 1;\n\
       \  return n[0];\n\
@@ -146,6 +165,11 @@ transformTests =
       \  return n[0];\n\
       \}\n"
     , "(fun ▢ : [Int]. ((fun ▢ : [Int]. (read v0 0)) (set v0 0 1)))")
+  , ( "fn f(n : [Int * Int]) -> Int {\n\
+      \  n{0} := 1;\n\
+      \  return n{0};\n\
+      \}\n"
+    , "(fun ▢ : [Int * Int]. ((fun ▢ : [Int * Int]. (read_at_key v0 0)) (set_at_key v0 0 1)))")
   ]
 
 testReducedTransform :: Text -> Text -> Expectation

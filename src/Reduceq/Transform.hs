@@ -171,8 +171,13 @@ transformExpr (AST.Inl x) = CoqAST.Inl <$> transformExpr x
 transformExpr (AST.Inr x) = CoqAST.Inr <$> transformExpr x
 transformExpr (AST.Set arr index val) =
   CoqAST.Set <$> transformExpr arr <*> transformExpr index <*> transformExpr val
+transformExpr (AST.SetAtKey arr key val) =
+  CoqAST.SetAtKey <$> transformExpr arr <*> transformExpr key <*>
+  transformExpr val
 transformExpr (AST.Read arr index) =
   CoqAST.Read <$> transformExpr arr <*> transformExpr index
+transformExpr (AST.ReadAtKey arr key) =
+  CoqAST.ReadAtKey <$> transformExpr arr <*> transformExpr key
 transformExpr AST.Unit = pure CoqAST.Unit
 transformExpr (AST.Call fun args) =
   foldr
@@ -187,3 +192,5 @@ transformTy AST.TyBool = CoqAST.TyBool
 transformTy (AST.TyArr ty) = CoqAST.TyArr (transformTy ty)
 transformTy (AST.TyFun args retTy) =
   foldr CoqAST.TyFun (transformTy retTy) (map transformTy args)
+transformTy (AST.TyProd a b) = CoqAST.TyProd (transformTy a) (transformTy b)
+transformTy (AST.TySum a b) = CoqAST.TySum (transformTy a) (transformTy b)

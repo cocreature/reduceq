@@ -88,8 +88,28 @@ tyId =
   , _styleReservedHighlight = ReservedIdentifier
   }
 
+tyOp :: TokenParsing m => IdentifierStyle m
+tyOp =
+  IdentifierStyle
+  { _styleName = "type operator"
+  , _styleStart = oneOf ""
+  , _styleLetter = oneOf ""
+  , _styleReserved = HashSet.fromList ["*", "+"]
+  , _styleHighlight = Operator
+  , _styleReservedHighlight = ReservedOperator
+  }
+
 tyParser :: Parser Ty
-tyParser = TyInt <$ reserve tyId "Int" <|> TyArr <$> brackets tyParser
+tyParser = buildExpressionParser table term
+  where
+    term =
+      choice
+        [ parens tyParser
+        , TyInt <$ reserve tyId "Int"
+        , TyArr <$> brackets tyParser
+        ]
+    table = [[tyBinary "*" TyProd]]
+    tyBinary name op = Infix (op <$ reserve tyOp name) AssocLeft
 
 tyVarParser :: Parser TypedVar
 tyVarParser = do
@@ -103,7 +123,7 @@ exprParser = buildExpressionParser table term
   where
     term = choice [parens exprParser, VarRef <$> identifier, IntLit <$> natural]
     table =
-      [ [Postfix arrayRead, Postfix functionCall]
+      [ [Postfix arrayRead, Postfix mapRead, Postfix functionCall]
       , [intBinary "*" IMul]
       , [intBinary "+" IAdd, intBinary "-" ISub]
       , [intCompBinary "==" IEq, intCompBinary "<" ILt, intCompBinary ">" IGt]
@@ -113,6 +133,9 @@ exprParser = buildExpressionParser table term
     arrayRead = do
       index <- brackets exprParser
       pure (\arr -> Read arr index)
+    mapRead = do
+      key <- braces exprParser
+      pure (\arr -> ReadAtKey arr key)
     functionCall = do
       args <- NonEmpty.fromList <$> parens (exprParser `sepBy1` comma)
       pure (\name -> Call name args)
@@ -124,15 +147,19 @@ data AssgnLocation
   = VarLoc !VarId
   | ArrLoc !VarId
            !Expr
+  | MapLoc !VarId
+           !Expr
   deriving (Show, Eq, Ord)
 
 assgnLocParser :: Parser AssgnLocation
 assgnLocParser = do
   name <- identifier
-  index <- optional (brackets exprParser)
+  index <-
+    optional (Left <$> brackets exprParser <|> Right <$> braces exprParser)
   case index of
     Nothing -> pure (VarLoc name)
-    Just i -> pure (ArrLoc name i)
+    Just (Left i) -> pure (ArrLoc name i)
+    Just (Right key) -> pure (MapLoc name key)
 
 stmtParser :: Parser Stmt
 stmtParser = choice [while, ret, if_, varDecl, assgn] <?> "statement"
@@ -150,7 +177,8 @@ stmtParser = choice [while, ret, if_, varDecl, assgn] <?> "statement"
           _ <- semi
           case loc of
             VarLoc id -> pure (Assgn id val)
-            ArrLoc id index -> pure (Assgn id (Set (VarRef id) index val))) <?>
+            ArrLoc id index -> pure (Assgn id (Set (VarRef id) index val))
+            MapLoc id key -> pure (Assgn id (SetAtKey (VarRef id) key val))) <?>
       "assignment"
     varDecl =
       (do tyVar <- try tyVarParser

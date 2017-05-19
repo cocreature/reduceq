@@ -105,11 +105,22 @@ pprintExpr (Set arr index val) =
     (pprintExpr arr)
     (pprintExpr index)
     (pprintExpr val)
+pprintExpr (SetAtKey arr index val) =
+  liftA3
+    (\arr' index' val' -> parens ("set_at_key" <+> arr' <+> index' <+> val'))
+    (pprintExpr arr)
+    (pprintExpr index)
+    (pprintExpr val)
 pprintExpr (Read arr index) =
   liftA2
     (\arr' index' -> parens ("read" <+> arr' <+> index'))
     (pprintExpr arr)
     (pprintExpr index)
+pprintExpr (ReadAtKey m key) =
+  liftA2
+    (\m' k -> parens ("read_at_key" <+> m' <+> k))
+    (pprintExpr m)
+    (pprintExpr key)
 pprintExpr Unit = pure "()"
 
 displayDoc :: Doc a -> Text
