@@ -259,22 +259,31 @@ main =
     typeInferenceSpec
     coqProveSpec
 
+testProveSpec :: Text -> Text -> Expectation
+testProveSpec input output =
+  withParseResult fileParser input $ \decls ->
+    withTransformed decls $ \transformed ->
+      let reduced = betaReduce transformed
+      in withType reduced $ \ty ->
+           displayCompact (PrettyCoq.pprintExample reduced ty) `shouldBe` output
+
+coqProveTests :: [(Text, Text)]
+coqProveTests =
+  [ ( "fn f(x : Int) -> Int {\
+      \  return x + 1;\
+      \}"
+    , "Require Import Term Typing.\n\
+      \Definition example := (tabs TInt (tint_binop Add (tvar 0) (tint 1))).\n\
+      \Lemma example_typing : empty_ctx |-- example \\in (TArrow TInt TInt).\n\
+      \Proof. unfold example. eauto. Qed.\n")
+  ]
+
 coqProveSpec :: Spec
 coqProveSpec =
-  describe "generate example" $ do
-    it "should generate the correct Coq file" $ do
-      let input =
-            "fn f(x : Int) -> Int {\
-            \  return x + 1;\
-            \}"
-          output =
-            "Require Import Term Typing.\n\
-            \Definition example := (tabs TInt (tint_binop Add (tvar 0) (tint 1))).\n\
-            \Lemma example_typing : empty_ctx |-- example \\in (TArrow TInt TInt).\n\
-            \Proof. unfold example. eauto. Qed.\n"
-      withParseResult fileParser input $ \decls ->
-        withTransformed decls $ \transformed ->
-          let reduced = betaReduce transformed
-          in withType reduced $ \ty ->
-               displayCompact (PrettyCoq.pprintExample reduced ty) `shouldBe`
-               output
+  describe "generate example" $
+  mapM_
+    (\(test, i) ->
+       it
+         ("generate the correct Coq file for example " <> show i)
+         (uncurry testProveSpec test))
+    (zip coqProveTests [(1 :: Int) ..])
