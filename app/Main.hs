@@ -12,57 +12,85 @@ import Reduceq.Transform
 
 import Options.Applicative hiding (Success, Failure)
 
-data CliArgs = CliArgs
-  { argInputFile :: !FilePath
-  , argOutputFile :: !(Maybe FilePath)
-  , argCoqFormat :: !Bool
+data ProveOptions = ProveOptions
+  { proveOptInputFile :: !FilePath
+  , proveOptOutputFile :: !(Maybe FilePath)
   } deriving (Show, Eq, Ord)
 
-argsParser :: Parser CliArgs
+data DumpOptions = DumpOptions
+  { dumpOptInputFile :: !FilePath
+  } deriving (Show, Eq, Ord)
+
+data Commands
+  = DumpCommand !DumpOptions
+  | ProveCommand !ProveOptions
+  deriving (Show, Eq, Ord)
+
+argsParser :: Parser Commands
 argsParser =
-  CliArgs <$>
-  strOption (short 'i' <> metavar "PATH" <> help "Path to the input file") <*>
-  optional
-    (strOption
-       (short 'o' <> metavar "PATH" <>
-        help "Path to the output file. Defaults to stdout")) <*>
-  switch (long "coq" <> help "Use the output format required by Coq")
+  subparser
+    (command
+       "dump"
+       (info
+          (DumpCommand <$> dumpOptions)
+          (progDesc
+             "Dump the parsed representation and the inferred type to stdout")) <>
+     command
+       "prove"
+       (info
+          (ProveCommand <$> proveOptions)
+          (progDesc "Generate a coq file including the proof obligation")))
+  where
+    dumpOptions = DumpOptions <$> strArgument (metavar "FILE")
+    proveOptions =
+      ProveOptions <$> strArgument (metavar "FILE") <*>
+      optional (strOption (short 'o' <> metavar "FILE"))
+
+dumpCommand :: DumpOptions -> IO ()
+dumpCommand DumpOptions {dumpOptInputFile} = do
+  input <- readFile dumpOptInputFile
+  case parseText fileParser mempty input of
+    Success decls ->
+      case runTransformM (transformDecls decls) of
+        Left err -> hPutStrLn stderr (showTransformError err)
+        Right transformed ->
+          let reduced = betaReduce transformed
+              pprinted = runPprintM (Pretty.pprintExpr reduced)
+          in case runInferM (inferType reduced) of
+               Left err -> hPutStrLn stderr (showInferError err)
+               Right ty -> do
+                 putDoc pprinted
+                 putDoc (" : " <> Pretty.pprintTy ty)
+    Failure errInfo -> hPutStrLn stderr (renderParseError errInfo)
+
+proveCommand :: ProveOptions -> IO ()
+proveCommand ProveOptions {proveOptInputFile, proveOptOutputFile} = do
+  input <- readFile proveOptInputFile
+  case parseText fileParser mempty input of
+    Success decls ->
+      case runTransformM (transformDecls decls) of
+        Left err -> hPutStrLn stderr (showTransformError err)
+        Right transformed ->
+          let reduced = betaReduce transformed
+          in case runInferM (inferType reduced) of
+               Left err -> hPutStrLn stderr (showInferError err)
+               Right ty ->
+                 let output =
+                       Pretty.displayDoc (PrettyCoq.pprintExample reduced ty)
+                 in case proveOptOutputFile of
+                      Nothing -> putStrLn output
+                      Just file -> writeFile file output
+    Failure errInfo -> hPutStrLn stderr (renderParseError errInfo)
+
 
 main :: IO ()
 main = do
-  CliArgs { argInputFile = inputPath
-          , argOutputFile = outputPath
-          , argCoqFormat = coqFormat
-          } <- execParser cliArgs
-  input <- readFile inputPath
-  case parseText fileParser mempty input of
-    Success decls -> do
-      let transformed = runTransformM (transformDecls decls)
-      case transformed of
-        Left err -> hPutStrLn stderr (showTransformError err)
-        Right transformed' ->
-          let reduced = betaReduce transformed'
-              pprinted
-                | coqFormat = PrettyCoq.pprintExpr reduced
-                | otherwise = runPprintM (Pretty.pprintExpr reduced)
-              ty = runInferM (inferType reduced)
-          in case ty of
-               Left err -> do
-                 hPutStrLn stderr (showInferError err)
-               Right ty' ->
-                 case outputPath of
-                   Nothing -> do
-                     putDoc pprinted
-                     when
-                       (not coqFormat)
-                       (putDoc (" : " <> Pretty.pprintTy ty'))
-                   Just file ->
-                     writeFile
-                       file
-                       (Pretty.displayDoc (PrettyCoq.pprintExample reduced ty'))
-    Failure errInfo -> hPutStrLn stderr (renderParseError errInfo)
+  argCommand <- execParser argsParserInfo
+  case argCommand of
+    DumpCommand opts -> dumpCommand opts
+    ProveCommand opts -> proveCommand opts
   where
-    cliArgs =
+    argsParserInfo =
       info
         (argsParser <**> helper)
         (fullDesc <>

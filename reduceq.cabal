@@ -55,7 +55,10 @@ executable reduceq-exe
                      , reduceq
                      , wl-pprint-ansi
   default-language:    Haskell2010
-  default-extensions:  NoImplicitPrelude, OverloadedStrings, TypeApplications
+  default-extensions:  NamedFieldPuns
+                     , NoImplicitPrelude
+                     , OverloadedStrings
+                     , TypeApplications
 
 test-suite reduceq-test
   type:                exitcode-stdio-1.0
