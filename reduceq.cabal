@@ -38,6 +38,7 @@ library
   default-extensions:  DeriveDataTypeable
                      , DeriveFunctor
                      , GeneralizedNewtypeDeriving
+                     , NamedFieldPuns
                      , NoImplicitPrelude
                      , OverloadedStrings
                      , TypeApplications
