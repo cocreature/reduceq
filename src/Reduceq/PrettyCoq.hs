@@ -8,6 +8,7 @@ module Reduceq.PrettyCoq
 import Reduceq.Prelude
 
 import Data.Text.Prettyprint.Doc as Pretty
+import Data.Text.Prettyprint.Doc.Internal as PrettyInternal
 import Data.Text.Prettyprint.Doc.Render.Text
 
 import Reduceq.CoqAST
@@ -95,7 +96,7 @@ pprintTypingLemma externRefs ty
       [ "Lemma example_typing :"
       , indent
           2
-          ("forall" <+>
+          (PrettyInternal.Text 1 "forall" <+>
            refParams <> "," <+>
            align
              (vsep

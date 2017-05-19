@@ -285,7 +285,7 @@ coqProveTests =
       \Definition example g := (tapp (tabs (TArrow TInt TInt) (tabs TInt (tapp (tvar 1) (tvar 0)))) g).\n\
       \Lemma example_typing :\n\
       \  forall g, empty_ctx |-- g \\in (TArrow TInt TInt) ->\n\
-      \            empty_ctx |-- example g \\in (TArrow TInt TInt).\n\
+      \       empty_ctx |-- example g \\in (TArrow TInt TInt).\n\
       \Proof. unfold example. repeat econstructor; eauto. Qed.\n")
   ]
 
