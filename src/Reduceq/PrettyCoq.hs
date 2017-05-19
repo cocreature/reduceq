@@ -43,12 +43,14 @@ pprintComp comp =
 
 pprintExpr :: Expr VarId -> Doc a
 pprintExpr (Var id) = pprintVar id
+pprintExpr (ExternRef (ExternReference name _)) = pretty name
 pprintExpr (IntLit i) =
   let lit
         | i >= 0 = pretty i
         | otherwise = parens (pretty i)
   in parens ("tint" <+> lit)
-pprintExpr (App f x) = (parens . align) (pprintExpr f <+> pprintExpr x)
+pprintExpr (App f x) =
+  (parens . align) ("tapp" <+> pprintExpr f <+> pprintExpr x)
 pprintExpr (Abs ty body) = parens ("tabs" <+> pprintTy ty <+> pprintExpr body)
 pprintExpr (Fst x) = parens ("tfst" <+> pprintExpr x)
 pprintExpr (Snd x) = parens ("tsnd" <+> pprintExpr x)
@@ -76,18 +78,48 @@ pprintExpr Unit = "tunit"
 displayDoc :: Doc a -> Text
 displayDoc = renderStrict . layoutPretty defaultLayoutOptions . unAnnotate
 
-pprintTypingLemma :: Ty -> Doc a
-pprintTypingLemma ty =
-  vsep
-    [ "Lemma example_typing : empty_ctx |-- example \\in" <+> pprintTy ty <> "."
-    , "Proof. unfold example. eauto. Qed."
-    ]
+pprintExternRefAssumption :: ExternReference -> Doc a
+pprintExternRefAssumption (ExternReference name ty) =
+  "empty_ctx |--" <+> pretty name <+> "\\in" <+> pprintTy ty <+> "->"
+
+pprintTypingLemma :: [ExternReference] -> Ty -> Doc a
+pprintTypingLemma externRefs ty
+  | null externRefs =
+    vsep
+      [ "Lemma example_typing :"
+      , indent 2 ("empty_ctx |-- example \\in" <+> pprintTy ty <> ".")
+      , proof
+      ]
+  | otherwise =
+    vsep
+      [ "Lemma example_typing :"
+      , indent
+          2
+          ("forall" <+>
+           refParams <> "," <+>
+           align
+             (vsep
+                (assumptions ++
+                 [ "empty_ctx |-- example" <+>
+                   refParams <+> "\\in" <+> pprintTy ty <> "."
+                 ])))
+      , proof
+      ]
+  where
+    refParams = hsep (map (pretty . refName) externRefs)
+    assumptions = (map pprintExternRefAssumption externRefs)
+    proof = "Proof. unfold example. repeat econstructor; eauto. Qed."
+
 
 pprintExample :: Expr VarId -> Ty -> Doc a
 pprintExample expr ty =
   vsep
     [ "Require Import Term Typing."
-    , "Definition example :=" <+> pprintExpr expr <> "."
-    , pprintTypingLemma ty
+    , "Definition example" <+>
+      hsep (map (pretty . refName) externRefs) <+>
+      ":=" <+> pprintExpr expr <> "."
+    , pprintTypingLemma externRefs ty
     , ""
     ]
+  where
+    externRefs = collectExternReferences expr

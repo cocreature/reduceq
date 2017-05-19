@@ -57,9 +57,16 @@ runTransformM :: TransformM a -> Either TransformError a
 runTransformM (TransformM a) = runReader (runExceptT a) Map.empty
 
 transformDecl :: AST.FunDecl -> TransformM (CoqAST.Expr CoqAST.VarId)
-transformDecl (AST.FunctionDeclaration (AST.VarId name) args _ body) =
+transformDecl (AST.FunctionDeclaration (AST.VarId name) args retTy body) =
   case body of
-    AST.ExternFunction -> pure (CoqAST.ExternReference name)
+    AST.ExternFunction
+      -- TODO this needs to be lifted by the number of bound variables
+     ->
+      pure
+        (CoqAST.ExternRef
+           (CoqAST.ExternReference
+              name
+              (transformTy (AST.TyFun (map AST.varType args) retTy))))
     AST.FunctionBody stmts ->
       foldr (.) identity (map withBoundVar args) (transformStmts stmts)
 

@@ -1,5 +1,7 @@
+{-# LANGUAGE TemplateHaskell #-}
 module Reduceq.CoqAST
   ( Expr(..)
+  , ExternReference(..)
   , Ty(..)
   , VarId(..)
   , IntBinop(..)
@@ -7,6 +9,7 @@ module Reduceq.CoqAST
   , liftVarsAbove
   , shiftVars
   , betaReduce
+  , collectExternReferences
   ) where
 
 import Reduceq.Prelude
@@ -35,9 +38,14 @@ data Ty
           Ty
   deriving (Show, Eq, Ord, Data, Typeable)
 
+data ExternReference = ExternReference
+  { refName :: !Text
+  , refType :: !Ty
+  } deriving (Show, Eq, Ord, Data, Typeable)
+
 data Expr a
   = Var a
-  | ExternReference !Text
+  | ExternRef !ExternReference
   | IntLit !Integer
   | App (Expr a)
         (Expr a)
@@ -77,6 +85,11 @@ data Expr a
               (Expr a) -- Read map val
   | Unit
   deriving (Show, Eq, Ord, Data, Typeable)
+
+makePrisms ''Expr
+
+collectExternReferences :: Data a => Expr a -> [ExternReference]
+collectExternReferences e = e ^.. plate . _ExternRef
 
 instance Data a => Plated (Expr a)
 

@@ -273,9 +273,20 @@ coqProveTests =
       \  return x + 1;\
       \}"
     , "Require Import Term Typing.\n\
-      \Definition example := (tabs TInt (tint_binop Add (tvar 0) (tint 1))).\n\
-      \Lemma example_typing : empty_ctx |-- example \\in (TArrow TInt TInt).\n\
-      \Proof. unfold example. eauto. Qed.\n")
+      \Definition example  := (tabs TInt (tint_binop Add (tvar 0) (tint 1))).\n\
+      \Lemma example_typing :\n\
+      \  empty_ctx |-- example \\in (TArrow TInt TInt).\n\
+      \Proof. unfold example. repeat econstructor; eauto. Qed.\n")
+  , ( "extern fn g(x : Int) -> Int {}\
+      \fn f(x : Int) -> Int {\
+      \ return g(x);\
+      \}"
+    , "Require Import Term Typing.\n\
+      \Definition example g := (tapp (tabs (TArrow TInt TInt) (tabs TInt (tapp (tvar 1) (tvar 0)))) g).\n\
+      \Lemma example_typing :\n\
+      \  forall g, empty_ctx |-- g \\in (TArrow TInt TInt) ->\n\
+      \            empty_ctx |-- example g \\in (TArrow TInt TInt).\n\
+      \Proof. unfold example. repeat econstructor; eauto. Qed.\n")
   ]
 
 coqProveSpec :: Spec

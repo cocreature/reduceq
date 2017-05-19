@@ -67,6 +67,7 @@ checkType :: Expr VarId -> Ty -> InferM Ty
 checkType (Var id) ty = do
   ty' <- varTy id
   guardTyEqual ty ty'
+checkType (ExternRef (ExternReference _ ty')) ty = guardTyEqual ty' ty
 checkType (IntLit _) ty = guardTyEqual ty TyInt
 checkType (App f x) ty = do
   argTy <- inferType x
