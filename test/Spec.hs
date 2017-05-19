@@ -36,69 +36,79 @@ functionParseTests =
         "f"
         [TypedVar "x" TyInt]
         TyInt
-        [Return (IntBinop IAdd (VarRef "x") (IntLit 1))])
+        (FunctionBody [Return (IntBinop IAdd (VarRef "x") (IntLit 1))]))
   , ( "fn f(x : Int, y : Int) -> Int { return (x + 1); }"
     , FunctionDeclaration
         "f"
         [TypedVar "x" TyInt, TypedVar "y" TyInt]
         TyInt
-        [Return (IntBinop IAdd (VarRef "x") (IntLit 1))])
+        (FunctionBody [Return (IntBinop IAdd (VarRef "x") (IntLit 1))]))
   , ( "fn f (x : Int) -> Int { x := x + 1; return (x + 1); }"
     , FunctionDeclaration
         "f"
         [TypedVar "x" TyInt]
         TyInt
-        [ Assgn "x" (IntBinop IAdd (VarRef "x") (IntLit 1))
-        , Return (IntBinop IAdd (VarRef "x") (IntLit 1))
-        ])
+        (FunctionBody
+           [ Assgn "x" (IntBinop IAdd (VarRef "x") (IntLit 1))
+           , Return (IntBinop IAdd (VarRef "x") (IntLit 1))
+           ]))
   , ( "fn f (x : Int) -> Int { y : Int = x + 1; return (y); }"
     , FunctionDeclaration
         "f"
         [TypedVar "x" TyInt]
         TyInt
-        [ VarDecl (TypedVar "y" TyInt) (IntBinop IAdd (VarRef "x") (IntLit 1))
-        , Return (VarRef "y")
-        ])
+        (FunctionBody
+           [ VarDecl
+               (TypedVar "y" TyInt)
+               (IntBinop IAdd (VarRef "x") (IntLit 1))
+           , Return (VarRef "y")
+           ]))
   , ( "fn f (x : Int) -> Int { y : Int = 0; while (y < x) { y := y + 1; } return (y); }"
     , FunctionDeclaration
         "f"
         [TypedVar "x" TyInt]
         TyInt
-        [ VarDecl (TypedVar "y" TyInt) (IntLit 0)
-        , While
-            (IntComp ILt (VarRef "y") (VarRef "x"))
-            [Assgn "y" (IntBinop IAdd (VarRef "y") (IntLit 1))]
-        , Return (VarRef "y")
-        ])
+        (FunctionBody
+           [ VarDecl (TypedVar "y" TyInt) (IntLit 0)
+           , While
+               (IntComp ILt (VarRef "y") (VarRef "x"))
+               [Assgn "y" (IntBinop IAdd (VarRef "y") (IntLit 1))]
+           , Return (VarRef "y")
+           ]))
   , ( "fn f (x : Int) -> Int { if (x < 0) { x := 1; } if (x > 0) { x := 2; } else { x := 3; } return (x); }"
     , FunctionDeclaration
         "f"
         [TypedVar "x" TyInt]
         TyInt
-        [ If
-            (IntComp ILt (VarRef "x") (IntLit 0))
-            [Assgn "x" (IntLit 1)]
-            Nothing
-        , If
-            (IntComp IGt (VarRef "x") (IntLit 0))
-            [Assgn "x" (IntLit 2)]
-            (Just [Assgn "x" (IntLit 3)])
-        , Return (VarRef "x")
-        ])
+        (FunctionBody
+           [ If
+               (IntComp ILt (VarRef "x") (IntLit 0))
+               [Assgn "x" (IntLit 1)]
+               Nothing
+           , If
+               (IntComp IGt (VarRef "x") (IntLit 0))
+               [Assgn "x" (IntLit 2)]
+               (Just [Assgn "x" (IntLit 3)])
+           , Return (VarRef "x")
+           ]))
   , ( "fn f(x : [Int]) -> Int { x[0] := 1; return 42; }"
     , FunctionDeclaration
         "f"
         [TypedVar "x" (TyArr TyInt)]
         TyInt
-        [Assgn "x" (Set (VarRef "x") (IntLit 0) (IntLit 1)), Return (IntLit 42)])
+        (FunctionBody
+           [ Assgn "x" (Set (VarRef "x") (IntLit 0) (IntLit 1))
+           , Return (IntLit 42)
+           ]))
   , ( "fn f(x : [Int * Int]) -> Int { x{0} := 1; return 42; }"
     , FunctionDeclaration
         "f"
         [TypedVar "x" (TyArr (TyInt `TyProd` TyInt))]
         TyInt
-        [ Assgn "x" (SetAtKey (VarRef "x") (IntLit 0) (IntLit 1))
-        , Return (IntLit 42)
-        ])
+        (FunctionBody
+           [ Assgn "x" (SetAtKey (VarRef "x") (IntLit 0) (IntLit 1))
+           , Return (IntLit 42)
+           ]))
   , ( "fn f(n : [Int * Int]) -> Int {\n\
       \  n{0} := 1;\n\
       \  return n{0};\n\
@@ -107,9 +117,10 @@ functionParseTests =
         "f"
         [TypedVar "n" (TyArr (TyInt `TyProd` TyInt))]
         TyInt
-        [ Assgn "n" (SetAtKey (VarRef "n") (IntLit 0) (IntLit 1))
-        , Return (ReadAtKey (VarRef "n") (IntLit 0))
-        ])
+        (FunctionBody
+           [ Assgn "n" (SetAtKey (VarRef "n") (IntLit 0) (IntLit 1))
+           , Return (ReadAtKey (VarRef "n") (IntLit 0))
+           ]))
   , ( "fn f(n : [Int]) -> Int {\n\
       \  n[0] := 1;\n\
       \  return n[0];\n\
@@ -118,20 +129,24 @@ functionParseTests =
         "f"
         [TypedVar "n" (TyArr TyInt)]
         TyInt
-        [ Assgn "n" (Set (VarRef "n") (IntLit 0) (IntLit 1))
-        , Return (Read (VarRef "n") (IntLit 0))
-        ])
+        (FunctionBody
+           [ Assgn "n" (Set (VarRef "n") (IntLit 0) (IntLit 1))
+           , Return (Read (VarRef "n") (IntLit 0))
+           ]))
   , ( "fn f () -> Int {\n\
-     \  x : Int = g(1);\n\
-     \  return g(x, 2, 3);\n\
-     \}"
+      \  x : Int = g(1);\n\
+      \  return g(x, 2, 3);\n\
+      \}"
     , FunctionDeclaration
         "f"
         []
         TyInt
-        [ VarDecl (TypedVar "x" TyInt) (Call (VarRef "g") [IntLit 1])
-        , Return (Call (VarRef "g") [VarRef "x", IntLit 2, IntLit 3])
-        ])
+        (FunctionBody
+           [ VarDecl (TypedVar "x" TyInt) (Call (VarRef "g") [IntLit 1])
+           , Return (Call (VarRef "g") [VarRef "x", IntLit 2, IntLit 3])
+           ]))
+  , ( "extern fn f () -> Int {}"
+    , FunctionDeclaration "f" [] TyInt ExternFunction)
   ]
 
 withTransformed :: NonEmpty AST.FunDecl -> (CoqAST.Expr CoqAST.VarId -> Expectation) -> Expectation
@@ -209,6 +224,11 @@ reducedTransformTests =
       \  return g(x, 2, 3);\
       \}"
     , "((fun ▢ : Int → Int. ((fun ▢ : Int → Int → Int → Int. ((fun ▢ : Int. (((v1 3) 2) v0)) (v1 1))) (fun ▢ : Int. (fun ▢ : Int. (fun ▢ : Int. ((v2 + v1) + v0)))))) (fun ▢ : Int. v0))")
+  , ( "extern fn f(x : Int) -> Int {}\
+      \fn g(x : Int) -> Int {\
+      \ return f(x);\
+      \}"
+    , "((fun ▢ : Int \8594 Int. (fun ▢ : Int. (v1 v0))) f)")
   ]
 
 

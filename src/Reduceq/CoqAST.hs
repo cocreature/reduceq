@@ -37,6 +37,7 @@ data Ty
 
 data Expr a
   = Var a
+  | ExternReference !Text
   | IntLit !Integer
   | App (Expr a)
         (Expr a)

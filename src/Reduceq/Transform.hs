@@ -57,8 +57,11 @@ runTransformM :: TransformM a -> Either TransformError a
 runTransformM (TransformM a) = runReader (runExceptT a) Map.empty
 
 transformDecl :: AST.FunDecl -> TransformM (CoqAST.Expr CoqAST.VarId)
-transformDecl (AST.FunctionDeclaration _ args _ body) =
-  foldr (.) identity (map withBoundVar args) (transformStmts body)
+transformDecl (AST.FunctionDeclaration (AST.VarId name) args _ body) =
+  case body of
+    AST.ExternFunction -> pure (CoqAST.ExternReference name)
+    AST.FunctionBody stmts ->
+      foldr (.) identity (map withBoundVar args) (transformStmts stmts)
 
 transformDecls :: NonEmpty AST.FunDecl -> TransformM (CoqAST.Expr CoqAST.VarId)
 transformDecls decls

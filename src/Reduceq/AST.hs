@@ -1,13 +1,14 @@
 module Reduceq.AST
   ( VarId(..)
   , Decl(..)
+  , Expr(..)
+  , FunctionBody(..)
+  , FunDecl(..)
+  , IntBinop(..)
+  , IntComp(..)
+  , Stmt(..)
   , Ty(..)
   , TypedVar(..)
-  , FunDecl(..)
-  , Expr(..)
-  , IntBinop(..)
-  , Stmt(..)
-  , IntComp(..)
   , funDeclTy
   ) where
 
@@ -35,11 +36,16 @@ data TypedVar = TypedVar
   , varType :: !Ty
   } deriving (Show, Eq, Ord)
 
+data FunctionBody
+  = ExternFunction
+  | FunctionBody ![Stmt]
+  deriving (Show, Eq, Ord)
+
 data FunDecl = FunctionDeclaration
   { funName :: !VarId
   , funArguments :: [TypedVar]
   , funReturnType :: !Ty
-  , funBody :: ![Stmt]
+  , funBody :: !FunctionBody
   } deriving (Show, Eq, Ord)
 
 funDeclTy :: FunDecl -> Ty

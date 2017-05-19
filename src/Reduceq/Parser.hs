@@ -58,7 +58,8 @@ varId =
   , _styleStart = lower
   , _styleLetter = alphaNum <|> oneOf "_'"
   , _styleReserved =
-      HashSet.fromList ["fn", "for", "while", "if", "else", "elseif", "return"]
+      HashSet.fromList
+        ["fn", "for", "while", "if", "else", "elseif", "return", "extern"]
   , _styleHighlight = Identifier
   , _styleReservedHighlight = ReservedIdentifier
   }
@@ -203,12 +204,16 @@ stmtParser = choice [while, ret, if_, varDecl, assgn] <?> "statement"
 
 fundeclParser :: Parser FunDecl
 fundeclParser =
-  (do reserve varId "fn"
+  (do extern <- isJust <$> optional (reserve varId "extern")
+      reserve varId "fn"
       name <- identifier
       args <- parens (tyVarParser `sepBy` reserve varOp ",")
       _ <- token (text "->")
       returnTy <- tyParser
-      body <- braces (many stmtParser)
+      body <-
+        if extern
+          then ExternFunction <$ braces (spaces)
+          else FunctionBody <$> braces (some stmtParser)
       pure (FunctionDeclaration name args returnTy body)) <?>
   "function declaration"
 
