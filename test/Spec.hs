@@ -5,8 +5,10 @@ import           Test.Hspec
 
 import           Reduceq.AST as AST
 import           Reduceq.CoqAST (betaReduce)
+import qualified Reduceq.CoqAST as CoqAST
 import           Reduceq.Parser
 import           Reduceq.Pretty
+import qualified Reduceq.PrettyCoq as PrettyCoq
 import           Reduceq.Transform
 
 import           Reduceq.CoqAST.TypingSpec
@@ -14,11 +16,15 @@ import           Reduceq.CoqAST.TypingSpec
 parseError :: ErrInfo -> Expectation
 parseError = expectationFailure . toS . renderParseError
 
+withParseResult :: (Show a, Eq a) => Parser a -> Text -> (a -> Expectation) -> Expectation
+withParseResult parser input cont =
+  case parseText parser mempty input of
+    Success result -> cont result
+    Failure errInfo -> parseError errInfo
+
 expectParseResult :: (Show a, Eq a) => Parser a -> Text -> a -> Expectation
 expectParseResult parser input result =
-  case parseText parser mempty input of
-    Success result' -> result' `shouldBe` result
-    Failure errInfo -> parseError errInfo
+  withParseResult parser input (`shouldBe` result)
 
 testParseFunction :: Text -> FunDecl -> Expectation
 testParseFunction input result = expectParseResult fundeclParser input result
@@ -109,16 +115,17 @@ functionParseTests =
         ])
   ]
 
+withTransformed :: NonEmpty AST.FunDecl -> (CoqAST.Expr CoqAST.VarId -> Expectation) -> Expectation
+withTransformed decls cont =
+  case runTransformM (transformDecls decls) of
+    Left err -> expectationFailure (toS (showTransformError err))
+    Right transformed -> cont transformed
+
 testTransform :: Text -> Text -> Expectation
 testTransform original expected =
-  case parseText fileParser mempty original of
-    Success decls ->
-      case runTransformM (transformDecls decls) of
-        Left err -> expectationFailure (toS (showTransformError err))
-        Right transformed ->
-          (displayCompact . runPprintM . pprintExpr) transformed `shouldBe`
-          expected
-    Failure errInfo -> parseError errInfo
+  withParseResult fileParser original $ \decls ->
+    withTransformed decls $ \transformed ->
+      (displayCompact . runPprintM . pprintExpr) transformed `shouldBe` expected
 
 transformTests :: [(Text,Text)]
 transformTests =
@@ -143,14 +150,10 @@ transformTests =
 
 testReducedTransform :: Text -> Text -> Expectation
 testReducedTransform original expected =
-  case parseText fileParser mempty original of
-    Success decls ->
-      case runTransformM (transformDecls decls) of
-        Left err -> expectationFailure (toS (showTransformError err))
-        Right transformed ->
-          (displayCompact . runPprintM . pprintExpr . betaReduce) transformed `shouldBe`
-          expected
-    Failure errInfo -> parseError errInfo
+  withParseResult fileParser original $ \decls ->
+    withTransformed decls $ \transformed ->
+      (displayCompact . runPprintM . pprintExpr . betaReduce) transformed `shouldBe`
+      expected
 
 reducedTransformTests :: [(Text, Text)]
 reducedTransformTests =
@@ -185,31 +188,49 @@ reducedTransformTests =
   ]
 
 
-parserSpec :: Spec
-parserSpec = do
-  describe "parse function" $ do
-    mapM_
-      (\(test, i) ->
-         it
-           ("parses example " <> show i <> " correctly")
-           (uncurry testParseFunction test))
-      (zip functionParseTests [(1 :: Int) ..])
-  describe "transform" $ do
-    mapM_
-      (\(test, i) ->
-         it
-           ("transforms example " <> show i <> " correctly")
-           (uncurry testTransform test))
-      (zip transformTests [(1 :: Int) ..])
-  describe "transform and reduce" $ do
-    mapM_
-      (\(test, i) ->
-         it
-           ("transforms and reduces example " <> show i <> " correctly")
-           (uncurry testReducedTransform test))
-      (zip reducedTransformTests [(1 :: Int) ..])
-  typeInferenceSpec
-
 main :: IO ()
-main = hspec $ do
-  parserSpec
+main =
+  hspec $ do
+    describe "parse function" $ do
+      mapM_
+        (\(test, i) ->
+           it
+             ("parses example " <> show i <> " correctly")
+             (uncurry testParseFunction test))
+        (zip functionParseTests [(1 :: Int) ..])
+    describe "transform" $ do
+      mapM_
+        (\(test, i) ->
+           it
+             ("transforms example " <> show i <> " correctly")
+             (uncurry testTransform test))
+        (zip transformTests [(1 :: Int) ..])
+    describe "transform and reduce" $ do
+      mapM_
+        (\(test, i) ->
+           it
+             ("transforms and reduces example " <> show i <> " correctly")
+             (uncurry testReducedTransform test))
+        (zip reducedTransformTests [(1 :: Int) ..])
+    typeInferenceSpec
+    coqProveSpec
+
+coqProveSpec :: Spec
+coqProveSpec =
+  describe "generate example" $ do
+    it "should generate the correct Coq file" $ do
+      let input =
+            "fn f(x : Int) -> Int {\
+            \  return x + 1;\
+            \}"
+          output =
+            "Require Import Term Typing.\n\
+            \Definition example := (tabs TInt (tint_binop Add (tvar 0) (tint 1))).\n\
+            \Lemma example_typing : empty_ctx |-- example \\in (TArrow TInt TInt).\n\
+            \Proof. unfold example. eauto. Qed.\n"
+      withParseResult fileParser input $ \decls ->
+        withTransformed decls $ \transformed ->
+          let reduced = betaReduce transformed
+          in withType reduced $ \ty ->
+               displayCompact (PrettyCoq.pprintExample reduced ty) `shouldBe`
+               output

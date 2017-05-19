@@ -1,5 +1,6 @@
 module Reduceq.CoqAST.TypingSpec
   ( typeInferenceSpec
+  , withType
   ) where
 
 import Reduceq.Prelude
@@ -50,3 +51,9 @@ typeInferenceSpec =
            ("infers type of example " <> show i <> " correctly")
            (uncurry testTypeInference test))
       (zip typeInferenceTests [(1 :: Int) ..])
+
+withType :: Expr VarId -> (Ty -> Expectation) -> Expectation
+withType expr cont =
+  case runInferM (inferType expr) of
+    Left err -> (expectationFailure . toS . showInferError) err
+    Right ty -> cont ty
