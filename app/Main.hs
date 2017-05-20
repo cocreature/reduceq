@@ -46,42 +46,34 @@ argsParser =
       ProveOptions <$> strArgument (metavar "FILE") <*>
       optional (strOption (short 'o' <> metavar "FILE"))
 
-dumpCommand :: DumpOptions -> IO ()
-dumpCommand DumpOptions {dumpOptInputFile} = do
-  input <- readFile dumpOptInputFile
+withTypedReducedInputFile :: FilePath -> (Expr VarId -> Ty -> IO ()) -> IO ()
+withTypedReducedInputFile path cont = do
+  input <- readFile path
   case parseText fileParser mempty input of
+    Failure errInfo -> hPutStrLn stderr (renderParseError errInfo)
     Success decls ->
       case runTransformM (transformDecls decls) of
         Left err -> hPutStrLn stderr (showTransformError err)
         Right transformed ->
           let reduced = betaReduce transformed
-              pprinted = runPprintM (Pretty.pprintExpr reduced)
           in case runInferM (inferType reduced) of
                Left err -> hPutStrLn stderr (showInferError err)
-               Right ty -> do
-                 putDoc pprinted
-                 putDoc (" : " <> Pretty.pprintTy ty)
-    Failure errInfo -> hPutStrLn stderr (renderParseError errInfo)
+               Right ty -> cont reduced ty
+
+dumpCommand :: DumpOptions -> IO ()
+dumpCommand DumpOptions {dumpOptInputFile} =
+  withTypedReducedInputFile dumpOptInputFile $ \reduced ty ->
+    let pprinted = runPprintM (Pretty.pprintExpr reduced)
+    in do putDoc pprinted
+          putDoc (" : " <> Pretty.pprintTy ty)
 
 proveCommand :: ProveOptions -> IO ()
 proveCommand ProveOptions {proveOptInputFile, proveOptOutputFile} = do
-  input <- readFile proveOptInputFile
-  case parseText fileParser mempty input of
-    Success decls ->
-      case runTransformM (transformDecls decls) of
-        Left err -> hPutStrLn stderr (showTransformError err)
-        Right transformed ->
-          let reduced = betaReduce transformed
-          in case runInferM (inferType reduced) of
-               Left err -> hPutStrLn stderr (showInferError err)
-               Right ty ->
-                 let output =
-                       Pretty.displayDoc (PrettyCoq.pprintExample reduced ty)
-                 in case proveOptOutputFile of
-                      Nothing -> putStrLn output
-                      Just file -> writeFile file output
-    Failure errInfo -> hPutStrLn stderr (renderParseError errInfo)
-
+  withTypedReducedInputFile proveOptInputFile $ \reduced ty ->
+    let output = Pretty.displayDoc (PrettyCoq.pprintExample reduced ty)
+    in case proveOptOutputFile of
+         Nothing -> putStrLn output
+         Just file -> writeFile file output
 
 main :: IO ()
 main = do
