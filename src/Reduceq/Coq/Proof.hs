@@ -1,9 +1,6 @@
-module Reduceq.Coq.PrettyCoq
-  ( displayDoc
-  , pprintExample
+module Reduceq.Coq.Proof
+  ( pprintExample
   , pprintProofObligation
-  , pprintExpr
-  , pprintTy
   , PprintError(..)
   , showPprintError
   , MatchError(..)
@@ -16,7 +13,6 @@ import qualified Data.Map as Map
 import qualified Data.Map.Merge.Lazy as Map
 import           Data.Text.Prettyprint.Doc as Pretty
 import qualified Data.Text.Prettyprint.Doc.Internal as PrettyInternal
-import           Data.Text.Prettyprint.Doc.Render.Text
 
 import           Reduceq.Coq.AST
 
@@ -83,9 +79,6 @@ pprintExpr (Read arr index) =
   parens ("tread" <+> pprintExpr arr <+> pprintExpr index)
 pprintExpr Unit = "tunit"
 pprintExpr (Annotated e _) = pprintExpr e
-
-displayDoc :: Doc a -> Text
-displayDoc = renderStrict . layoutPretty defaultLayoutOptions . unAnnotate
 
 pprintTypingJudgement :: Text -> [ExternReference] -> Ty -> Doc a
 pprintTypingJudgement name externRefs ty =

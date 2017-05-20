@@ -5,9 +5,8 @@ import Reduceq.Prelude
 
 import Data.Text.Prettyprint.Doc.Render.Terminal
 import Reduceq.Coq
-import Reduceq.Imp.Parser hiding (Parser)
 import Reduceq.Coq.Pretty as Pretty
-import Reduceq.Coq.PrettyCoq as PrettyCoq
+import Reduceq.Imp.Parser hiding (Parser)
 import Reduceq.Transform
 
 import Options.Applicative hiding (Success, Failure)
@@ -92,7 +91,7 @@ proveCommand ProveOptions { optImperativeInputFile
                           } = do
   withTypedReducedInputFile optImperativeInputFile $ \imperative imperativeTy ->
     withTypedReducedInputFile optMapReduceInputFile $ \mapreduce mapreduceTy ->
-      case PrettyCoq.pprintProofObligation
+      case pprintProofObligation
              (imperative, imperativeTy)
              (mapreduce, mapreduceTy) of
         Left err -> hPutStrLn stderr (showPprintError err)
@@ -105,7 +104,7 @@ proveCommand ProveOptions { optImperativeInputFile
 proveSingleCommand :: ProveSingleOptions -> IO ()
 proveSingleCommand ProveSingleOptions {optInputFile, optOutputFile} = do
   withTypedReducedInputFile optInputFile $ \reduced ty ->
-    let output = Pretty.displayDoc (PrettyCoq.pprintExample reduced ty)
+    let output = Pretty.displayDoc (pprintExample reduced ty)
     in case optOutputFile of
          Nothing -> putStrLn output
          Just file -> writeFile file output

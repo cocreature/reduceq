@@ -1,4 +1,4 @@
-module Reduceq.CoqAST.TypingSpec
+module Reduceq.Coq.TypingSpec
   ( typeInferenceSpec
   , withType
   ) where
@@ -9,6 +9,7 @@ import Test.Hspec
 
 import Reduceq.Coq
 import Reduceq.Imp.Parser
+
 import Reduceq.Spec.Util
 
 mkVar :: Word -> Expr VarId
