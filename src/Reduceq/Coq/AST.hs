@@ -1,5 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
-module Reduceq.CoqAST
+module Reduceq.Coq.AST
   ( Expr(..)
   , ExternReference(..)
   , Ty(..)
@@ -14,7 +14,7 @@ module Reduceq.CoqAST
 
 import Reduceq.Prelude
 
-import Reduceq.AST (IntBinop(..), IntComp(..))
+import Reduceq.Imp (IntBinop(..), IntComp(..))
 
 import Control.Lens hiding ((&), index, op)
 import Data.Data

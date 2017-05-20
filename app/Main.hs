@@ -4,11 +4,10 @@ module Main where
 import Reduceq.Prelude
 
 import Data.Text.Prettyprint.Doc.Render.Terminal
-import Reduceq.CoqAST
-import Reduceq.CoqAST.Typing
-import Reduceq.Parser hiding (Parser)
-import Reduceq.Pretty as Pretty
-import Reduceq.PrettyCoq as PrettyCoq
+import Reduceq.Coq
+import Reduceq.Imp.Parser hiding (Parser)
+import Reduceq.Coq.Pretty as Pretty
+import Reduceq.Coq.PrettyCoq as PrettyCoq
 import Reduceq.Transform
 
 import Options.Applicative hiding (Success, Failure)

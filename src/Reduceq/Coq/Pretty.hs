@@ -1,4 +1,4 @@
-module Reduceq.Pretty
+module Reduceq.Coq.Pretty
   ( displayDoc
   , displayCompact
   , pprintExpr
@@ -14,7 +14,7 @@ import           Data.Text.Prettyprint.Doc hiding ((<>))
 import           Data.Text.Prettyprint.Doc.Render.Terminal (Color(..), color, AnsiTerminal)
 import           Data.Text.Prettyprint.Doc.Render.Text
 
-import           Reduceq.CoqAST
+import           Reduceq.Coq.AST
 
 type VarColors = Map VarId Color
 

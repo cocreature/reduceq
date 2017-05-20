@@ -1,4 +1,4 @@
-module Reduceq.AST
+module Reduceq.Imp.AST
   ( VarId(..)
   , Decl(..)
   , Expr(..)

@@ -1,4 +1,4 @@
-module Reduceq.PrettyCoq
+module Reduceq.Coq.PrettyCoq
   ( displayDoc
   , pprintExample
   , pprintProofObligation
@@ -18,7 +18,7 @@ import           Data.Text.Prettyprint.Doc as Pretty
 import qualified Data.Text.Prettyprint.Doc.Internal as PrettyInternal
 import           Data.Text.Prettyprint.Doc.Render.Text
 
-import           Reduceq.CoqAST
+import           Reduceq.Coq.AST
 
 pprintVar :: VarId -> Doc a
 pprintVar (VarId index) = parens ("tvar" <+> pretty index)

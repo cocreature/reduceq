@@ -13,18 +13,18 @@ import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Set (Set)
 import qualified Data.Set as Set
-import qualified Reduceq.AST as AST
-import qualified Reduceq.CoqAST as CoqAST
+import qualified Reduceq.Coq as Coq
+import qualified Reduceq.Imp as Imp
 
-type VarContext = Map AST.VarId (CoqAST.Expr CoqAST.VarId, AST.Ty)
+type VarContext = Map Imp.VarId (Coq.Expr Coq.VarId, Imp.Ty)
 
 data TransformError
-  = UnknownVariable AST.VarId
+  = UnknownVariable Imp.VarId
   | MissingReturnStmt
   deriving (Show, Eq, Ord)
 
 showTransformError :: TransformError -> Text
-showTransformError (UnknownVariable (AST.VarId id)) =
+showTransformError (UnknownVariable (Imp.VarId id)) =
   "Unknown variable " <> show id <>
   ". Variables can only be referenced after they have been declared or if they are function parameters"
 showTransformError MissingReturnStmt =
@@ -39,14 +39,14 @@ newtype TransformM a =
            , MonadError TransformError
            )
 
-withBoundVar :: AST.TypedVar -> TransformM (CoqAST.Expr CoqAST.VarId) -> TransformM (CoqAST.Expr CoqAST.VarId)
-withBoundVar (AST.TypedVar name ty) =
+withBoundVar :: Imp.TypedVar -> TransformM (Coq.Expr Coq.VarId) -> TransformM (Coq.Expr Coq.VarId)
+withBoundVar (Imp.TypedVar name ty) =
   local
-    (Map.insert name (CoqAST.Var $ CoqAST.VarId 0, ty) .
-     Map.map (first CoqAST.shiftVars)) .
-  fmap (CoqAST.Abs (transformTy ty))
+    (Map.insert name (Coq.Var $ Coq.VarId 0, ty) .
+     Map.map (first Coq.shiftVars)) .
+  fmap (Coq.Abs (transformTy ty))
 
-varRef :: AST.VarId -> TransformM (CoqAST.Expr CoqAST.VarId)
+varRef :: Imp.VarId -> TransformM (Coq.Expr Coq.VarId)
 varRef id = do
   expr <- asks (Map.lookup id)
   case expr of
@@ -56,153 +56,153 @@ varRef id = do
 runTransformM :: TransformM a -> Either TransformError a
 runTransformM (TransformM a) = runReader (runExceptT a) Map.empty
 
-transformDecl :: AST.FunDecl -> TransformM (CoqAST.Expr CoqAST.VarId)
-transformDecl (AST.FunctionDeclaration (AST.VarId name) args retTy body) =
+transformDecl :: Imp.FunDecl -> TransformM (Coq.Expr Coq.VarId)
+transformDecl (Imp.FunctionDeclaration (Imp.VarId name) args retTy body) =
   case body of
-    AST.ExternFunction
+    Imp.ExternFunction
       -- TODO this needs to be lifted by the number of bound variables
      ->
       pure
-        (CoqAST.Annotated
-           (CoqAST.ExternRef (CoqAST.ExternReference name coqTy))
+        (Coq.Annotated
+           (Coq.ExternRef (Coq.ExternReference name coqTy))
            coqTy)
-    AST.FunctionBody stmts ->
-      (`CoqAST.Annotated` coqTy) <$>
+    Imp.FunctionBody stmts ->
+      (`Coq.Annotated` coqTy) <$>
       foldr (.) identity (map withBoundVar args) (transformStmts stmts)
   where
-    coqTy = transformTy (AST.TyFun (map AST.varType args) retTy)
+    coqTy = transformTy (Imp.TyFun (map Imp.varType args) retTy)
 
-transformDecls :: NonEmpty AST.FunDecl -> TransformM (CoqAST.Expr CoqAST.VarId)
+transformDecls :: NonEmpty Imp.FunDecl -> TransformM (Coq.Expr Coq.VarId)
 transformDecls decls
  -- declarations can only reference earlier declarations
  =
   foldr
     (\decl acc ->
-       CoqAST.App <$>
-       withBoundVar (AST.TypedVar (AST.funName decl) (AST.funDeclTy decl)) acc <*>
+       Coq.App <$>
+       withBoundVar (Imp.TypedVar (Imp.funName decl) (Imp.funDeclTy decl)) acc <*>
        (transformDecl decl))
     (transformDecl (NonEmpty.last decls))
     (NonEmpty.init decls)
 
 
-transformAssgnLoc :: AST.VarId -> TransformM AST.TypedVar
+transformAssgnLoc :: Imp.VarId -> TransformM Imp.TypedVar
 transformAssgnLoc id = do
   expr <- asks (Map.lookup id)
   case expr of
     Nothing -> throwError (UnknownVariable id)
-    Just (_, ty) -> pure (AST.TypedVar id ty)
+    Just (_, ty) -> pure (Imp.TypedVar id ty)
 
-collectAssgns :: [AST.Stmt] -> TransformM (Set AST.TypedVar)
+collectAssgns :: [Imp.Stmt] -> TransformM (Set Imp.TypedVar)
 collectAssgns = fmap mconcat . mapM collectAssgns'
   where
-   collectAssgns' (AST.Assgn loc _) = Set.singleton <$> transformAssgnLoc loc
+   collectAssgns' (Imp.Assgn loc _) = Set.singleton <$> transformAssgnLoc loc
    collectAssgns' _ = pure (Set.empty)
 
-toTuple :: [AST.TypedVar] -> AST.Expr
+toTuple :: [Imp.TypedVar] -> Imp.Expr
 toTuple vars =
-  case map (AST.VarRef . AST.varName) vars of
-    [] -> AST.Unit
+  case map (Imp.VarRef . Imp.varName) vars of
+    [] -> Imp.Unit
     [var] -> var
-    vars' -> foldr1 AST.Pair vars'
+    vars' -> foldr1 Imp.Pair vars'
 
-refAsTuple :: [AST.TypedVar] -> VarContext
+refAsTuple :: [Imp.TypedVar] -> VarContext
 refAsTuple vars =
   case vars of
     [] -> Map.empty
-    [AST.TypedVar id ty] -> Map.singleton id (tupleRef, ty)
+    [Imp.TypedVar id ty] -> Map.singleton id (tupleRef, ty)
     vars' ->
       let (last':init') =
-            (reverse . take (length vars') . iterate CoqAST.Snd) tupleRef
-          refs = reverse (last' : map CoqAST.Fst init')
+            (reverse . take (length vars') . iterate Coq.Snd) tupleRef
+          refs = reverse (last' : map Coq.Fst init')
       in Map.fromList
-           (zipWith (\(AST.TypedVar id ty) ref -> (id, (ref, ty))) vars' refs)
+           (zipWith (\(Imp.TypedVar id ty) ref -> (id, (ref, ty))) vars' refs)
   where
-    tupleRef = CoqAST.Var (CoqAST.VarId 0)
+    tupleRef = Coq.Var (Coq.VarId 0)
 
-tupleType :: [AST.Ty] -> CoqAST.Ty
+tupleType :: [Imp.Ty] -> Coq.Ty
 tupleType vars =
   case vars of
-    [] -> CoqAST.TyUnit
+    [] -> Coq.TyUnit
     [ty] -> transformTy ty
-    tys -> foldr1 CoqAST.TyProd (map transformTy tys)
+    tys -> foldr1 Coq.TyProd (map transformTy tys)
 
-varsAsTuple :: [AST.TypedVar] -> TransformM (CoqAST.Expr CoqAST.VarId)
+varsAsTuple :: [Imp.TypedVar] -> TransformM (Coq.Expr Coq.VarId)
 varsAsTuple vars =
-  case map AST.varName vars of
-    [] -> pure CoqAST.Unit
+  case map Imp.varName vars of
+    [] -> pure Coq.Unit
     [var] -> varRef var
-    vars' -> foldr1 CoqAST.Pair <$> (mapM varRef vars')
+    vars' -> foldr1 Coq.Pair <$> (mapM varRef vars')
 
-withVarsAsTuple :: [AST.TypedVar]
-                -> TransformM (CoqAST.Expr CoqAST.VarId)
-                -> TransformM (CoqAST.Expr CoqAST.VarId)
+withVarsAsTuple :: [Imp.TypedVar]
+                -> TransformM (Coq.Expr Coq.VarId)
+                -> TransformM (Coq.Expr Coq.VarId)
 withVarsAsTuple vars =
-  local (Map.union (refAsTuple vars) . Map.map (first CoqAST.shiftVars)) .
-  fmap (CoqAST.Abs (tupleType (map AST.varType vars)))
+  local (Map.union (refAsTuple vars) . Map.map (first Coq.shiftVars)) .
+  fmap (Coq.Abs (tupleType (map Imp.varType vars)))
 
-transformStmts :: [AST.Stmt] -> TransformM (CoqAST.Expr CoqAST.VarId)
+transformStmts :: [Imp.Stmt] -> TransformM (Coq.Expr Coq.VarId)
 transformStmts [] = throwError MissingReturnStmt
-transformStmts (AST.Return e:_) = transformExpr e
-transformStmts (AST.Assgn loc val:stmts) = do
+transformStmts (Imp.Return e:_) = transformExpr e
+transformStmts (Imp.Assgn loc val:stmts) = do
   loc' <- transformAssgnLoc loc
-  CoqAST.App <$> withBoundVar loc' (transformStmts stmts) <*> transformExpr val
-transformStmts (AST.VarDecl tyVar val:stmts) =
-  CoqAST.App <$> withBoundVar tyVar (transformStmts stmts) <*> transformExpr val
-transformStmts (AST.If cond ifTrue ifFalse:stmts) = do
+  Coq.App <$> withBoundVar loc' (transformStmts stmts) <*> transformExpr val
+transformStmts (Imp.VarDecl tyVar val:stmts) =
+  Coq.App <$> withBoundVar tyVar (transformStmts stmts) <*> transformExpr val
+transformStmts (Imp.If cond ifTrue ifFalse:stmts) = do
   assignments <- Set.toList <$> (
     Set.union <$> collectAssgns ifTrue <*> collectAssgns (fromMaybe [] ifFalse))
-  let retModified = AST.Return (toTuple assignments)
+  let retModified = Imp.Return (toTuple assignments)
       ifTrue' = ifTrue ++ [retModified]
       ifFalse' = fromMaybe [] ifFalse ++ [retModified]
-  CoqAST.App <$> withVarsAsTuple assignments (transformStmts stmts) <*>
-    (CoqAST.If <$> transformExpr cond <*> transformStmts ifTrue' <*>
+  Coq.App <$> withVarsAsTuple assignments (transformStmts stmts) <*>
+    (Coq.If <$> transformExpr cond <*> transformStmts ifTrue' <*>
      transformStmts ifFalse')
-transformStmts (AST.While cond body:stmts) = do
+transformStmts (Imp.While cond body:stmts) = do
   assignments <- Set.toList <$> (collectAssgns body)
-  let retModified = AST.Return (AST.Inr (toTuple assignments))
+  let retModified = Imp.Return (Imp.Inr (toTuple assignments))
       body' = body ++ [retModified]
   coqInit <- varsAsTuple assignments
   coqBody <-
     withVarsAsTuple
       assignments
-      (CoqAST.If <$> transformExpr cond <*> transformStmts body' <*>
-       pure (CoqAST.Inl CoqAST.Unit))
+      (Coq.If <$> transformExpr cond <*> transformStmts body' <*>
+       pure (Coq.Inl Coq.Unit))
   stmts' <- withVarsAsTuple assignments (transformStmts stmts)
-  pure (CoqAST.App stmts' (CoqAST.Iter coqBody coqInit))
+  pure (Coq.App stmts' (Coq.Iter coqBody coqInit))
 
-transformExpr :: AST.Expr -> TransformM (CoqAST.Expr CoqAST.VarId)
-transformExpr (AST.VarRef id) = varRef id
-transformExpr (AST.IntLit i) = pure (CoqAST.IntLit i)
-transformExpr (AST.IntBinop op arg1 arg2) =
-  CoqAST.IntBinop op <$> transformExpr arg1 <*> transformExpr arg2
-transformExpr (AST.IntComp comp arg1 arg2) =
-  CoqAST.IntComp comp <$> transformExpr arg1 <*> transformExpr arg2
-transformExpr (AST.Pair x y) =
-  CoqAST.Pair <$> transformExpr x <*> transformExpr y
-transformExpr (AST.Inl x) = CoqAST.Inl <$> transformExpr x
-transformExpr (AST.Inr x) = CoqAST.Inr <$> transformExpr x
-transformExpr (AST.Set arr index val) =
-  CoqAST.Set <$> transformExpr arr <*> transformExpr index <*> transformExpr val
-transformExpr (AST.SetAtKey arr key val) =
-  CoqAST.SetAtKey <$> transformExpr arr <*> transformExpr key <*>
+transformExpr :: Imp.Expr -> TransformM (Coq.Expr Coq.VarId)
+transformExpr (Imp.VarRef id) = varRef id
+transformExpr (Imp.IntLit i) = pure (Coq.IntLit i)
+transformExpr (Imp.IntBinop op arg1 arg2) =
+  Coq.IntBinop op <$> transformExpr arg1 <*> transformExpr arg2
+transformExpr (Imp.IntComp comp arg1 arg2) =
+  Coq.IntComp comp <$> transformExpr arg1 <*> transformExpr arg2
+transformExpr (Imp.Pair x y) =
+  Coq.Pair <$> transformExpr x <*> transformExpr y
+transformExpr (Imp.Inl x) = Coq.Inl <$> transformExpr x
+transformExpr (Imp.Inr x) = Coq.Inr <$> transformExpr x
+transformExpr (Imp.Set arr index val) =
+  Coq.Set <$> transformExpr arr <*> transformExpr index <*> transformExpr val
+transformExpr (Imp.SetAtKey arr key val) =
+  Coq.SetAtKey <$> transformExpr arr <*> transformExpr key <*>
   transformExpr val
-transformExpr (AST.Read arr index) =
-  CoqAST.Read <$> transformExpr arr <*> transformExpr index
-transformExpr (AST.ReadAtKey arr key) =
-  CoqAST.ReadAtKey <$> transformExpr arr <*> transformExpr key
-transformExpr AST.Unit = pure CoqAST.Unit
-transformExpr (AST.Call fun args) =
+transformExpr (Imp.Read arr index) =
+  Coq.Read <$> transformExpr arr <*> transformExpr index
+transformExpr (Imp.ReadAtKey arr key) =
+  Coq.ReadAtKey <$> transformExpr arr <*> transformExpr key
+transformExpr Imp.Unit = pure Coq.Unit
+transformExpr (Imp.Call fun args) =
   foldr
-    (\arg f -> CoqAST.App <$> f <*> transformExpr arg)
+    (\arg f -> Coq.App <$> f <*> transformExpr arg)
     (transformExpr fun)
     args
 
-transformTy :: AST.Ty -> CoqAST.Ty
-transformTy AST.TyInt = CoqAST.TyInt
-transformTy AST.TyReal = CoqAST.TyReal
-transformTy AST.TyBool = CoqAST.TyBool
-transformTy (AST.TyArr ty) = CoqAST.TyArr (transformTy ty)
-transformTy (AST.TyFun args retTy) =
-  foldr CoqAST.TyFun (transformTy retTy) (map transformTy args)
-transformTy (AST.TyProd a b) = CoqAST.TyProd (transformTy a) (transformTy b)
-transformTy (AST.TySum a b) = CoqAST.TySum (transformTy a) (transformTy b)
+transformTy :: Imp.Ty -> Coq.Ty
+transformTy Imp.TyInt = Coq.TyInt
+transformTy Imp.TyReal = Coq.TyReal
+transformTy Imp.TyBool = Coq.TyBool
+transformTy (Imp.TyArr ty) = Coq.TyArr (transformTy ty)
+transformTy (Imp.TyFun args retTy) =
+  foldr Coq.TyFun (transformTy retTy) (map transformTy args)
+transformTy (Imp.TyProd a b) = Coq.TyProd (transformTy a) (transformTy b)
+transformTy (Imp.TySum a b) = Coq.TySum (transformTy a) (transformTy b)

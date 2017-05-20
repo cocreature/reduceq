@@ -3,13 +3,11 @@ import           Reduceq.Prelude
 
 import           Test.Hspec
 
-import           Reduceq.AST as AST
-import           Reduceq.CoqAST (betaReduce)
-import qualified Reduceq.CoqAST as CoqAST
-import           Reduceq.Parser
-import           Reduceq.Pretty
-import qualified Reduceq.PrettyCoq as PrettyCoq
-import           Reduceq.Transform
+import           Reduceq.Coq (betaReduce)
+import           Reduceq.Coq.Pretty
+import qualified Reduceq.Coq.PrettyCoq as PrettyCoq
+import           Reduceq.Imp.AST as Imp
+import           Reduceq.Imp.Parser
 
 import           Reduceq.CoqAST.TypingSpec
 import           Reduceq.Spec.Util

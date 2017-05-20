@@ -1,5 +1,5 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
-module Reduceq.Parser
+module Reduceq.Imp.Parser
   ( Parser
   , parseText
   , Result(..)
@@ -24,7 +24,7 @@ import qualified Text.Trifecta as Trifecta
 import           Text.Trifecta hiding (Parser)
 import           Text.Trifecta.Delta (Delta(..))
 
-import           Reduceq.AST
+import           Reduceq.Imp.AST
 
 newtype Parser a =
   Parser (Trifecta.Parser a)

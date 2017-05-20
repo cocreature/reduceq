@@ -1,4 +1,4 @@
-module Reduceq.CoqAST.Typing
+module Reduceq.Coq.Typing
   ( inferType
   , runInferM
   , InferM
@@ -9,7 +9,7 @@ module Reduceq.CoqAST.Typing
 import           Reduceq.Prelude
 
 import qualified Data.Map as Map
-import           Reduceq.CoqAST
+import           Reduceq.Coq.AST
 
 type VarContext = Map VarId Ty
 

@@ -7,9 +7,8 @@ import Reduceq.Prelude
 
 import Test.Hspec
 
-import Reduceq.CoqAST
-import Reduceq.CoqAST.Typing
-import Reduceq.Parser
+import Reduceq.Coq
+import Reduceq.Imp.Parser
 import Reduceq.Spec.Util
 
 mkVar :: Word -> Expr VarId
@@ -38,9 +37,7 @@ typeInferenceTests =
     , Right (TyFun (TyArr TyInt) TyInt))
   ]
 
-testTypeInference :: Expr VarId
-                  -> Either InferError Ty
-                  -> Expectation
+testTypeInference :: Expr VarId -> Either InferError Ty -> Expectation
 testTypeInference expr expectedTy =
   runInferM (inferType expr) `shouldBe` expectedTy
 

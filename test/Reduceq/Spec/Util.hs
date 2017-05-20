@@ -11,16 +11,16 @@ import           Reduceq.Prelude
 
 import           Test.Hspec
 
-import           Reduceq.CoqAST.Typing
-import qualified Reduceq.AST as AST
-import qualified Reduceq.CoqAST as CoqAST
-import           Reduceq.Parser
+import qualified Reduceq.Coq as Coq
+import           Reduceq.Coq.Typing
+import qualified Reduceq.Imp as Imp
+import           Reduceq.Imp.Parser
 import           Reduceq.Transform
 
 parseError :: ErrInfo -> Expectation
 parseError = expectationFailure . toS . renderParseError
 
-withTransformed :: NonEmpty AST.FunDecl -> (CoqAST.Expr CoqAST.VarId -> Expectation) -> Expectation
+withTransformed :: NonEmpty Imp.FunDecl -> (Coq.Expr Coq.VarId -> Expectation) -> Expectation
 withTransformed decls cont =
   case runTransformM (transformDecls decls) of
     Left err -> expectationFailure (toS (showTransformError err))
@@ -32,17 +32,17 @@ withParseResult parser input cont =
     Success result -> cont result
     Failure errInfo -> parseError errInfo
 
-withType :: CoqAST.Expr CoqAST.VarId -> (CoqAST.Ty -> Expectation) -> Expectation
+withType :: Coq.Expr Coq.VarId -> (Coq.Ty -> Expectation) -> Expectation
 withType expr cont =
   case runInferM (inferType expr) of
     Left err -> (expectationFailure . toS . showInferError) err
     Right ty -> cont ty
 
-withTypedReduced :: Text -> (CoqAST.Expr CoqAST.VarId  -> CoqAST.Ty -> Expectation) -> Expectation
+withTypedReduced :: Text -> (Coq.Expr Coq.VarId  -> Coq.Ty -> Expectation) -> Expectation
 withTypedReduced input cont =
   withParseResult fileParser input $ \decls ->
     withTransformed decls $ \transformed ->
-      let reduced = CoqAST.betaReduce transformed
+      let reduced = Coq.betaReduce transformed
       in withType reduced $ \ty -> cont reduced ty
 
 expectParseResult :: (Show a, Eq a) => Parser a -> Text -> a -> Expectation

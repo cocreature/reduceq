@@ -15,13 +15,15 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Reduceq.AST
-                       Reduceq.CoqAST
-                       Reduceq.CoqAST.Typing
-                       Reduceq.Parser
+  exposed-modules:     Reduceq.Coq
+                       Reduceq.Coq.AST
+                       Reduceq.Coq.Pretty
+                       Reduceq.Coq.PrettyCoq
+                       Reduceq.Coq.Typing
+                       Reduceq.Imp
+                       Reduceq.Imp.AST
+                       Reduceq.Imp.Parser
                        Reduceq.Prelude
-                       Reduceq.Pretty
-                       Reduceq.PrettyCoq
                        Reduceq.Transform
   build-depends:       ansi-wl-pprint
                      , base >= 4.9 && < 5
