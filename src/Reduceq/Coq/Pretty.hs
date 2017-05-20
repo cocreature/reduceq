@@ -55,6 +55,7 @@ pprintTy TyReal = "Real"
 pprintTy TyBool = "Bool"
 pprintTy TyUnit = "()"
 pprintTy (TyProd x y) = pprintTy x <+> "*" <+> pprintTy y
+pprintTy (TySum x y) = pprintTy x <+> "+" <+> pprintTy y
 pprintTy (TyArr t) = brackets (pprintTy t)
 pprintTy (TyFun cod dom) = pprintTy cod <+> "→" <+> pprintTy dom
 
@@ -82,6 +83,11 @@ pprintExpr (Abs ty body) =
       [ pure ("fun" <+> color c "▢" <+> ":" <+> pprintTy ty <> ".")
       , pprintExpr body
       ]
+pprintExpr (Case x ifL ifR) = do
+  x' <- pprintExpr x
+  ifL' <- withBoundVar (\_ -> pprintExpr ifL)
+  ifR' <- withBoundVar (\_ -> pprintExpr ifR)
+  (pure . parens . hang 3 . sep) ["case" <+> x', ifL', ifR']
 pprintExpr (Fst x) = parens . ("fst" <+>) <$> pprintExpr x
 pprintExpr (Snd x) = parens . ("snd" <+>) <$> pprintExpr x
 pprintExpr (Pair x y) =

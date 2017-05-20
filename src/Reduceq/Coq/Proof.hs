@@ -56,6 +56,9 @@ pprintExpr (IntLit i) =
 pprintExpr (App f x) =
   (parens . align) ("tapp" <+> pprintExpr f <+> pprintExpr x)
 pprintExpr (Abs ty body) = parens ("tabs" <+> pprintTy ty <+> pprintExpr body)
+pprintExpr (Case x ifL ifR) =
+  (parens . hang 3 . Pretty.group)
+    ("tcase" <+> pprintExpr x <+> pprintExpr ifL <+> pprintExpr ifR)
 pprintExpr (Fst x) = parens ("tfst" <+> pprintExpr x)
 pprintExpr (Snd x) = parens ("tsnd" <+> pprintExpr x)
 pprintExpr (Pair x y) =
@@ -75,8 +78,12 @@ pprintExpr (Inr x) =
   parens ("tinr" <+> pprintExpr x)
 pprintExpr (Set arr index val) =
   parens ("twrite" <+> pprintExpr arr <+> pprintExpr index <+> pprintExpr val)
+pprintExpr (SetAtKey arr key val) =
+  parens ("twrite_at_key" <+> pprintExpr arr <+> pprintExpr key <+> pprintExpr val)
 pprintExpr (Read arr index) =
   parens ("tread" <+> pprintExpr arr <+> pprintExpr index)
+pprintExpr (ReadAtKey arr key) =
+  parens ("tread_at_key" <+> pprintExpr arr <+> pprintExpr key)
 pprintExpr Unit = "tunit"
 pprintExpr (Annotated e _) = pprintExpr e
 
