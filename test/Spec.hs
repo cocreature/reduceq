@@ -12,19 +12,7 @@ import qualified Reduceq.PrettyCoq as PrettyCoq
 import           Reduceq.Transform
 
 import           Reduceq.CoqAST.TypingSpec
-
-parseError :: ErrInfo -> Expectation
-parseError = expectationFailure . toS . renderParseError
-
-withParseResult :: (Show a, Eq a) => Parser a -> Text -> (a -> Expectation) -> Expectation
-withParseResult parser input cont =
-  case parseText parser mempty input of
-    Success result -> cont result
-    Failure errInfo -> parseError errInfo
-
-expectParseResult :: (Show a, Eq a) => Parser a -> Text -> a -> Expectation
-expectParseResult parser input result =
-  withParseResult parser input (`shouldBe` result)
+import           Reduceq.Spec.Util
 
 testParseFunction :: Text -> FunDecl -> Expectation
 testParseFunction input result = expectParseResult fundeclParser input result
@@ -149,12 +137,6 @@ functionParseTests =
     , FunctionDeclaration "f" [] TyInt ExternFunction)
   ]
 
-withTransformed :: NonEmpty AST.FunDecl -> (CoqAST.Expr CoqAST.VarId -> Expectation) -> Expectation
-withTransformed decls cont =
-  case runTransformM (transformDecls decls) of
-    Left err -> expectationFailure (toS (showTransformError err))
-    Right transformed -> cont transformed
-
 testTransform :: Text -> Text -> Expectation
 testTransform original expected =
   withParseResult fileParser original $ \decls ->
@@ -267,13 +249,6 @@ testProveSingleSpec input output =
       in withType reduced $ \ty ->
            displayCompact (PrettyCoq.pprintExample reduced ty) `shouldBe` output
 
-withTypedReduced :: Text -> (CoqAST.Expr CoqAST.VarId  -> CoqAST.Ty -> Expectation) -> Expectation
-withTypedReduced input cont =
-  withParseResult fileParser input $ \decls ->
-    withTransformed decls $ \transformed ->
-      let reduced = betaReduce transformed
-      in withType reduced $ \ty -> cont reduced ty
-
 testProveSpec :: Text -> Text -> Text -> Expectation
 testProveSpec imperativeInp mapreduceInp output =
   withTypedReduced imperativeInp $ \imperative imperativeTy ->
@@ -309,13 +284,13 @@ coqProveSingleTests =
 coqProveTests :: [(Text, Text, Text)]
 coqProveTests =
   [ ( "extern fn g(x : Int) -> Int {}\
-     \fn f(x : Int) -> Int {\
-     \  return g(x);\
-     \}"
+      \fn f(x : Int) -> Int {\
+      \  return g(x);\
+      \}"
     , "extern fn g(x : Int) -> Int {}\
-     \fn f(x : Int) -> Int {\
-     \  return g(x);\
-     \}"
+      \fn f(x : Int) -> Int {\
+      \  return g(x);\
+      \}"
     , "Require Import Step Term Typing.\n\
       \Definition imperative g := (tapp (tabs (TArrow TInt TInt) (tabs TInt (tapp (tvar 1) (tvar 0)))) g).\n\
       \Definition mapreduce g := (tapp (tabs (TArrow TInt TInt) (tabs TInt (tapp (tvar 1) (tvar 0)))) g).\n\

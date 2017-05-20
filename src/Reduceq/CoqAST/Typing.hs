@@ -135,6 +135,9 @@ checkType (Read arr index) ty = do
   _ <- checkType index TyInt
   pure ty
 checkType Unit ty = guardTyEqual ty TyUnit
+checkType (Annotated e ty') ty = do
+  _ <- guardTyEqual ty' ty
+  checkType e ty
 
 inferType :: Expr VarId -> InferM Ty
 inferType (Var id) = varTy id
@@ -176,7 +179,7 @@ inferType (IntComp _ x y) = do
   pure TyBool
 inferType (Iter loop init) = do
   ty <- inferType init
-  _ <-checkType loop (TyFun ty (TySum TyUnit ty))
+  _ <- checkType loop (TyFun ty (TySum TyUnit ty))
   pure ty
 inferType (Set arr index val) = do
   _ <- checkType index TyInt
@@ -189,3 +192,4 @@ inferType (Read arr index) = do
     TyArr tyVal -> pure tyVal
     ty -> throwError (ExpectedArr ty)
 inferType Unit = pure TyUnit
+inferType (Annotated e ty) = checkType e ty

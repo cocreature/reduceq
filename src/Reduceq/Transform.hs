@@ -63,12 +63,14 @@ transformDecl (AST.FunctionDeclaration (AST.VarId name) args retTy body) =
       -- TODO this needs to be lifted by the number of bound variables
      ->
       pure
-        (CoqAST.ExternRef
-           (CoqAST.ExternReference
-              name
-              (transformTy (AST.TyFun (map AST.varType args) retTy))))
+        (CoqAST.Annotated
+           (CoqAST.ExternRef (CoqAST.ExternReference name coqTy))
+           coqTy)
     AST.FunctionBody stmts ->
+      (`CoqAST.Annotated` coqTy) <$>
       foldr (.) identity (map withBoundVar args) (transformStmts stmts)
+  where
+    coqTy = transformTy (AST.TyFun (map AST.varType args) retTy)
 
 transformDecls :: NonEmpty AST.FunDecl -> TransformM (CoqAST.Expr CoqAST.VarId)
 transformDecls decls

@@ -84,12 +84,14 @@ data Expr a
   | ReadAtKey (Expr a)
               (Expr a) -- Read map val
   | Unit
+  | Annotated (Expr a)
+              Ty -- explicit type annotations
   deriving (Show, Eq, Ord, Data, Typeable)
 
 makePrisms ''Expr
 
 collectExternReferences :: Data a => Expr a -> [ExternReference]
-collectExternReferences e = e ^.. plate . _ExternRef
+collectExternReferences e = e ^.. cosmos . _ExternRef
 
 instance Data a => Plated (Expr a)
 

@@ -123,6 +123,7 @@ pprintExpr (ReadAtKey m key) =
     (pprintExpr key)
 pprintExpr Unit = pure "()"
 pprintExpr (ExternRef (ExternReference name _)) = pure (pretty name)
+pprintExpr (Annotated e _) = pprintExpr e
 
 displayDoc :: Doc a -> Text
 displayDoc = renderStrict . layoutPretty defaultLayoutOptions . unAnnotate

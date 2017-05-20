@@ -10,15 +10,15 @@ module Reduceq.PrettyCoq
   , strictUnion
   ) where
 
-import Reduceq.Prelude
+import           Reduceq.Prelude
 
 import qualified Data.Map as Map
 import qualified Data.Map.Merge.Lazy as Map
-import Data.Text.Prettyprint.Doc as Pretty
-import Data.Text.Prettyprint.Doc.Internal as PrettyInternal
-import Data.Text.Prettyprint.Doc.Render.Text
+import           Data.Text.Prettyprint.Doc as Pretty
+import qualified Data.Text.Prettyprint.Doc.Internal as PrettyInternal
+import           Data.Text.Prettyprint.Doc.Render.Text
 
-import Reduceq.CoqAST
+import           Reduceq.CoqAST
 
 pprintVar :: VarId -> Doc a
 pprintVar (VarId index) = parens ("tvar" <+> pretty index)
@@ -82,6 +82,7 @@ pprintExpr (Set arr index val) =
 pprintExpr (Read arr index) =
   parens ("tread" <+> pprintExpr arr <+> pprintExpr index)
 pprintExpr Unit = "tunit"
+pprintExpr (Annotated e _) = pprintExpr e
 
 displayDoc :: Doc a -> Text
 displayDoc = renderStrict . layoutPretty defaultLayoutOptions . unAnnotate

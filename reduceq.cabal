@@ -65,6 +65,7 @@ test-suite reduceq-test
   hs-source-dirs:      test
   main-is:             Spec.hs
   other-modules:       Reduceq.CoqAST.TypingSpec
+                       Reduceq.Spec.Util
   build-depends:       base
                      , hspec
                      , lens
