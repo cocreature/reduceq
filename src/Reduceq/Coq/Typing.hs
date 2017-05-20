@@ -30,6 +30,7 @@ data InferError
   | UnboundVariable VarId
   | AmbigousType Text
   | ExpectedFunction Ty
+  | ExpectedSum Ty
   | ExpectedProd Ty
   | ExpectedBool Ty
   | ExpectedInt Ty
@@ -80,6 +81,14 @@ checkType (Abs codTy body) ty =
       _ <- withBoundVar codTy (checkType body domTy)
       pure ty
     ty' -> throwError (ExpectedFunction ty')
+checkType (Case x ifL ifR) ty = do
+  argTy <- inferType x
+  case argTy of
+    TySum tyL tyR -> do
+      _ <- withBoundVar tyL (checkType ifL ty)
+      _ <- withBoundVar tyR (checkType ifR ty)
+      pure ty
+    ty' -> throwError (ExpectedSum ty')
 checkType (Fst a) ty = do
   tyProd <- inferType a
   case tyProd of
@@ -100,9 +109,11 @@ checkType (Pair a b) ty = do
 checkType (Inl a) ty =
   case ty of
     TySum tyL _ -> checkType a tyL *> pure ty
+    _ -> throwError (ExpectedSum ty)
 checkType (Inr a) ty =
   case ty of
     TySum _ tyR -> checkType a tyR *> pure ty
+    _ -> throwError (ExpectedSum ty)
 checkType (If cond ifTrue ifFalse) ty = do
   _ <- checkType cond TyBool
   _ <- checkType ifTrue ty
@@ -130,9 +141,21 @@ checkType (Set arr index val) ty =
       _ <- checkType val tyVal
       pure ty
     _ -> throwError (ExpectedArr ty)
+checkType (SetAtKey arr key val) ty =
+  case ty of
+    TyArr (TyProd tyKey tyVal) -> do
+      _ <- checkType arr ty
+      _ <- checkType key tyKey
+      _ <- checkType val tyVal
+      pure ty
+    _ -> throwError (ExpectedArr ty)
 checkType (Read arr index) ty = do
   _ <- checkType arr (TyArr ty)
   _ <- checkType index TyInt
+  pure ty
+checkType (ReadAtKey arr key) ty = do
+  tyKey <- inferType key
+  _ <- checkType arr (TyProd tyKey ty)
   pure ty
 checkType Unit ty = guardTyEqual ty TyUnit
 checkType (Annotated e ty') ty = do
@@ -141,6 +164,7 @@ checkType (Annotated e ty') ty = do
 
 inferType :: Expr VarId -> InferM Ty
 inferType (Var id) = varTy id
+inferType (ExternRef (ExternReference _ ty)) = pure ty
 inferType (IntLit _) = pure TyInt
 inferType (App f x) = do
   funTy <- inferType f
@@ -151,6 +175,14 @@ inferType (App f x) = do
 inferType (Abs codTy body) = do
   domTy <- withBoundVar codTy (inferType body)
   pure (TyFun codTy domTy)
+inferType (Case x ifL ifR) = do
+  tyX <- inferType x
+  case tyX of
+    TySum tyL tyR -> do
+      tyIfL <- withBoundVar tyL (inferType ifL)
+      tyIfR <- withBoundVar tyR (inferType ifR)
+      guardTyEqual tyIfL tyIfR
+    _ -> throwError (ExpectedSum tyX)
 inferType (Fst a) = do
   ty <- inferType a
   case ty of
@@ -185,11 +217,22 @@ inferType (Set arr index val) = do
   _ <- checkType index TyInt
   tyVal <- inferType val
   checkType arr (TyArr tyVal)
+inferType (SetAtKey arr key val) = do
+  keyTy <- inferType key
+  valTy <- inferType val
+  checkType arr (TyArr (TyProd keyTy valTy))
 inferType (Read arr index) = do
   _ <- checkType index TyInt
   tyArr <- inferType arr
   case tyArr of
     TyArr tyVal -> pure tyVal
     ty -> throwError (ExpectedArr ty)
+inferType (ReadAtKey arr key) = do
+  tyArr <- inferType arr
+  case tyArr of
+    TyArr (TyProd tyKey tyVal) -> do
+      _ <- checkType key tyKey
+      pure tyVal
+    _ -> throwError (ExpectedArr tyArr)
 inferType Unit = pure TyUnit
 inferType (Annotated e ty) = checkType e ty
