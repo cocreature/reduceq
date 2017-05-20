@@ -259,21 +259,38 @@ main =
     typeInferenceSpec
     coqProveSpec
 
-testProveSpec :: Text -> Text -> Expectation
-testProveSpec input output =
+testProveSingleSpec :: Text -> Text -> Expectation
+testProveSingleSpec input output =
   withParseResult fileParser input $ \decls ->
     withTransformed decls $ \transformed ->
       let reduced = betaReduce transformed
       in withType reduced $ \ty ->
            displayCompact (PrettyCoq.pprintExample reduced ty) `shouldBe` output
 
-coqProveTests :: [(Text, Text)]
-coqProveTests =
+withTypedReduced :: Text -> (CoqAST.Expr CoqAST.VarId  -> CoqAST.Ty -> Expectation) -> Expectation
+withTypedReduced input cont =
+  withParseResult fileParser input $ \decls ->
+    withTransformed decls $ \transformed ->
+      let reduced = betaReduce transformed
+      in withType reduced $ \ty -> cont reduced ty
+
+testProveSpec :: Text -> Text -> Text -> Expectation
+testProveSpec imperativeInp mapreduceInp output =
+  withTypedReduced imperativeInp $ \imperative imperativeTy ->
+    withTypedReduced mapreduceInp $ \mapreduce mapreduceTy ->
+      case (PrettyCoq.pprintProofObligation
+              (imperative, imperativeTy)
+              (mapreduce, mapreduceTy)) of
+        Left err -> (expectationFailure . toS . PrettyCoq.showPprintError) err
+        Right doc -> displayCompact doc `shouldBe` output
+
+coqProveSingleTests :: [(Text, Text)]
+coqProveSingleTests =
   [ ( "fn f(x : Int) -> Int {\
       \  return x + 1;\
       \}"
     , "Require Import Term Typing.\n\
-      \Definition example  := (tabs TInt (tint_binop Add (tvar 0) (tint 1))).\n\
+      \Definition example := (tabs TInt (tint_binop Add (tvar 0) (tint 1))).\n\
       \Lemma example_typing :\n\
       \  empty_ctx |-- example \\in (TArrow TInt TInt).\n\
       \Proof. unfold example. repeat econstructor; eauto. Qed.\n")
@@ -289,12 +306,48 @@ coqProveTests =
       \Proof. unfold example. repeat econstructor; eauto. Qed.\n")
   ]
 
+coqProveTests :: [(Text, Text, Text)]
+coqProveTests =
+  [ ( "extern fn g(x : Int) -> Int {}\
+     \fn f(x : Int) -> Int {\
+     \  return g(x);\
+     \}"
+    , "extern fn g(x : Int) -> Int {}\
+     \fn f(x : Int) -> Int {\
+     \  return g(x);\
+     \}"
+    , "Require Import Step Term Typing.\n\
+      \Definition imperative g := (tapp (tabs (TArrow TInt TInt) (tabs TInt (tapp (tvar 1) (tvar 0)))) g).\n\
+      \Definition mapreduce g := (tapp (tabs (TArrow TInt TInt) (tabs TInt (tapp (tvar 1) (tvar 0)))) g).\n\
+      \Lemma imperative_typing :\n\
+      \  forall g, empty_ctx |-- g \\in (TArrow TInt TInt) ->\n\
+      \       empty_ctx |-- imperative g \\in (TArrow TInt TInt).\n\
+      \Proof. unfold imperative. repeat econstructor; eauto. Qed.\n\
+      \Lemma mapreduce_typing :\n\
+      \  forall g, empty_ctx |-- g \\in (TArrow TInt TInt) ->\n\
+      \       empty_ctx |-- mapreduce g \\in (TArrow TInt TInt).\n\
+      \Proof. unfold mapreduce. repeat econstructor; eauto. Qed.\n\
+      \Lemma equivalence :\n\
+      \  forall g, empty_ctx |-- g \\in (TArrow TInt TInt) ->\n\
+      \       forall final,\n\
+      \         bigstep (imperative g) final ->\n\
+      \         bigstep (mapreduce g) final.\n\
+      \Admitted.\n")
+  ]
+
 coqProveSpec :: Spec
-coqProveSpec =
+coqProveSpec = do
   describe "generate example" $
-  mapM_
-    (\(test, i) ->
-       it
-         ("generate the correct Coq file for example " <> show i)
-         (uncurry testProveSpec test))
-    (zip coqProveTests [(1 :: Int) ..])
+    mapM_
+      (\(test, i) ->
+         it
+           ("generates the correct Coq file for example " <> show i)
+           (uncurry testProveSingleSpec test))
+      (zip coqProveSingleTests [(1 :: Int) ..])
+  describe "generate proof obligation" $
+    mapM_
+      (\(test, i) ->
+         it
+           ("generates the correct Coq proof obligation for example " <> show i)
+           (uncurry3 testProveSpec test))
+      (zip coqProveTests [(1 :: Int) ..])

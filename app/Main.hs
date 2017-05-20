@@ -1,3 +1,4 @@
+{-# LANGUAGE DuplicateRecordFields #-}
 module Main where
 
 import Reduceq.Prelude
@@ -12,23 +13,30 @@ import Reduceq.Transform
 
 import Options.Applicative hiding (Success, Failure)
 
-data ProveOptions = ProveOptions
-  { proveOptInputFile :: !FilePath
-  , proveOptOutputFile :: !(Maybe FilePath)
+data DumpOptions = DumpOptions
+  { optInputFile :: !FilePath
   } deriving (Show, Eq, Ord)
 
-data DumpOptions = DumpOptions
-  { dumpOptInputFile :: !FilePath
+data ProveOptions = ProveOptions
+  { optImperativeInputFile :: !FilePath
+  , optMapReduceInputFile :: !FilePath
+  , optOutputFile :: !(Maybe FilePath)
+  } deriving (Show, Eq, Ord)
+
+data ProveSingleOptions = ProveSingleOptions
+  { optInputFile :: !FilePath
+  , optOutputFile :: !(Maybe FilePath)
   } deriving (Show, Eq, Ord)
 
 data Commands
   = DumpCommand !DumpOptions
   | ProveCommand !ProveOptions
+  | ProveSingleCommand !ProveSingleOptions
   deriving (Show, Eq, Ord)
 
 argsParser :: Parser Commands
 argsParser =
-  subparser
+  hsubparser
     (command
        "dump"
        (info
@@ -39,11 +47,22 @@ argsParser =
        "prove"
        (info
           (ProveCommand <$> proveOptions)
-          (progDesc "Generate a coq file including the proof obligation")))
+          (progDesc "Generate a coq file including the proof obligation")) <>
+     command
+       "prove-single"
+       (info
+          (ProveSingleCommand <$> proveSingleOptions)
+          (progDesc
+             "Debugging command that generates a Coq file based on only a single input file")))
   where
     dumpOptions = DumpOptions <$> strArgument (metavar "FILE")
     proveOptions =
-      ProveOptions <$> strArgument (metavar "FILE") <*>
+      ProveOptions <$>
+      strArgument (metavar "IMPERATIVE" <> help "Path to imperative algorithm") <*>
+      strArgument (metavar "MAPREDUCE" <> help "Path to MapReduce algorithm") <*>
+      optional (strOption (short 'o' <> metavar "FILE"))
+    proveSingleOptions =
+      ProveSingleOptions <$> strArgument (metavar "FILE") <*>
       optional (strOption (short 'o' <> metavar "FILE"))
 
 withTypedReducedInputFile :: FilePath -> (Expr VarId -> Ty -> IO ()) -> IO ()
@@ -61,26 +80,44 @@ withTypedReducedInputFile path cont = do
                Right ty -> cont reduced ty
 
 dumpCommand :: DumpOptions -> IO ()
-dumpCommand DumpOptions {dumpOptInputFile} =
-  withTypedReducedInputFile dumpOptInputFile $ \reduced ty ->
+dumpCommand DumpOptions {optInputFile} =
+  withTypedReducedInputFile optInputFile $ \reduced ty ->
     let pprinted = runPprintM (Pretty.pprintExpr reduced)
     in do putDoc pprinted
           putDoc (" : " <> Pretty.pprintTy ty)
 
 proveCommand :: ProveOptions -> IO ()
-proveCommand ProveOptions {proveOptInputFile, proveOptOutputFile} = do
-  withTypedReducedInputFile proveOptInputFile $ \reduced ty ->
+proveCommand ProveOptions { optImperativeInputFile
+                          , optMapReduceInputFile
+                          , optOutputFile
+                          } = do
+  withTypedReducedInputFile optImperativeInputFile $ \imperative imperativeTy ->
+    withTypedReducedInputFile optMapReduceInputFile $ \mapreduce mapreduceTy ->
+      case PrettyCoq.pprintProofObligation
+             (imperative, imperativeTy)
+             (mapreduce, mapreduceTy) of
+        Left err -> hPutStrLn stderr (showPprintError err)
+        Right output' ->
+          let output = Pretty.displayDoc output'
+          in case optOutputFile of
+               Nothing -> putStr output
+               Just file -> writeFile file output
+
+proveSingleCommand :: ProveSingleOptions -> IO ()
+proveSingleCommand ProveSingleOptions {optInputFile, optOutputFile} = do
+  withTypedReducedInputFile optInputFile $ \reduced ty ->
     let output = Pretty.displayDoc (PrettyCoq.pprintExample reduced ty)
-    in case proveOptOutputFile of
+    in case optOutputFile of
          Nothing -> putStrLn output
          Just file -> writeFile file output
 
 main :: IO ()
 main = do
-  argCommand <- execParser argsParserInfo
+  argCommand <- customExecParser (prefs showHelpOnEmpty) argsParserInfo
   case argCommand of
     DumpCommand opts -> dumpCommand opts
     ProveCommand opts -> proveCommand opts
+    ProveSingleCommand opts -> proveSingleCommand opts
   where
     argsParserInfo =
       info

@@ -8,6 +8,8 @@ packages:
     - wl-pprint
     - wl-pprint-ansi
   extra-dep: true
-extra-deps: []
+extra-deps:
+- containers-0.5.10.2
+- lens-4.15.2
 flags: {}
 extra-package-dbs: []
