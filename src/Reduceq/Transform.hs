@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedLists #-}
 module Reduceq.Transform
   ( runTransformM
   , transformDecl
@@ -13,6 +14,7 @@ import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Set (Set)
 import qualified Data.Set as Set
+
 import qualified Reduceq.Coq as Coq
 import qualified Reduceq.Imp as Imp
 
@@ -21,6 +23,9 @@ type VarContext = Map Imp.VarId (Coq.Expr Coq.VarId, Imp.Ty)
 data TransformError
   = UnknownVariable Imp.VarId
   | MissingReturnStmt
+  | ExpectedArgs Imp.VarId
+                 !Int
+                 !Int
   deriving (Show, Eq, Ord)
 
 showTransformError :: TransformError -> Text
@@ -29,6 +34,10 @@ showTransformError (UnknownVariable (Imp.VarId id)) =
   ". Variables can only be referenced after they have been declared or if they are function parameters"
 showTransformError MissingReturnStmt =
   "Missing return statement: Each function needs to end with a return statement."
+showTransformError (ExpectedArgs (Imp.VarId name) expected actual) =
+  show name <> " expects " <> show expected <> " arguments but got " <>
+  show actual <>
+  "."
 
 newtype TransformM a =
   TransformM (ExceptT TransformError (Reader VarContext) a)
@@ -45,6 +54,17 @@ withBoundVar (Imp.TypedVar name ty) =
     (Map.insert name (Coq.Var $ Coq.VarId 0, ty) .
      Map.map (first Coq.shiftVars)) .
   fmap (Coq.Abs (transformTy ty))
+
+withAnonBoundVar :: Coq.Ty -> TransformM (Coq.Expr Coq.VarId) -> TransformM (Coq.Expr Coq.VarId)
+withAnonBoundVar ty = local (Map.map (first Coq.shiftVars)) . fmap (Coq.Abs ty)
+
+withBoundVarProd :: (Imp.TypedVar, Imp.TypedVar) -> TransformM (Coq.Expr Coq.VarId) -> TransformM (Coq.Expr Coq.VarId)
+withBoundVarProd (Imp.TypedVar fstName fstTy, Imp.TypedVar sndName sndTy) =
+  assert (fstName /= sndName) $
+  local
+    (Map.insert fstName (Coq.Fst (Coq.Var (Coq.VarId 0)), fstTy) .
+     Map.insert sndName (Coq.Snd (Coq.Var (Coq.VarId 0)), sndTy)) .
+  fmap (Coq.Abs (Coq.TyProd (transformTy fstTy) (transformTy sndTy)))
 
 varRef :: Imp.VarId -> TransformM (Coq.Expr Coq.VarId)
 varRef id = do
@@ -191,6 +211,44 @@ transformExpr (Imp.Read arr index) =
 transformExpr (Imp.ReadAtKey arr key) =
   Coq.ReadAtKey <$> transformExpr arr <*> transformExpr key
 transformExpr Imp.Unit = pure Coq.Unit
+transformExpr (Imp.Call (Imp.VarRef "reduceByKey") args) =
+  case args of
+    [reducer, init, xs] -> do
+      xs' <- transformExpr xs
+      case reducer of
+        Imp.Lambda [varA@(Imp.TypedVar _ tyVal), varB@(Imp.TypedVar _ tyVal')] body ->
+          assert (tyVal == tyVal') $ do
+            let tyVal' = transformTy tyVal
+            let keyTy = Coq.TyInt -- TODO figure out the correct type
+            let mapArgTy = Coq.TyProd keyTy (Coq.TyArr tyVal')
+            mapper <-
+              withAnonBoundVar mapArgTy $ do
+                reducer' <- withBoundVarProd (varA, varB) (transformExpr body)
+                init' <- transformExpr init
+                pure
+                  (Coq.Pair
+                     (Coq.Fst (Coq.Var (Coq.VarId 0)))
+                     (Coq.Fold reducer' init' (Coq.Snd (Coq.Var (Coq.VarId 0)))))
+            pure (Coq.Map mapper (Coq.Group xs'))
+    _ -> throwError (ExpectedArgs "reduceByKey" 3 (length args))
+transformExpr (Imp.Call (Imp.VarRef "map") args) =
+  case args of
+    [mapper, xs] -> do
+      xs' <- transformExpr xs
+      case mapper of
+        Imp.Lambda [var] body -> do
+          mapper' <- withBoundVar var (transformExpr body)
+          pure (Coq.Map mapper' xs')
+    _ -> throwError (ExpectedArgs "map" 2 (length args))
+transformExpr (Imp.Call (Imp.VarRef "flatMap") args) =
+  case args of
+    [mapper, xs] -> do
+      xs' <- transformExpr xs
+      case mapper of
+        Imp.Lambda [var] body -> do
+          mapper' <- withBoundVar var (transformExpr body)
+          pure (Coq.Concat (Coq.Map mapper' xs'))
+    _ -> throwError (ExpectedArgs "flatMap" 2 (length args))
 transformExpr (Imp.Call fun args) =
   foldr
     (\arg f -> Coq.App <$> f <*> transformExpr arg)

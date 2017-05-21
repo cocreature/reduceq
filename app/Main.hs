@@ -74,7 +74,7 @@ withTypedReducedInputFile path cont = do
         Right transformed ->
           let reduced = betaReduce transformed
           in case runInferM (inferType reduced) of
-               Left err -> hPutStrLn stderr (showInferError err)
+               Left err -> hPutDoc stderr (showInferError err)
                Right ty -> cont reduced ty
 
 dumpCommand :: DumpOptions -> IO ()

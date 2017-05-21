@@ -86,6 +86,13 @@ data Expr a
   | Unit
   | Annotated (Expr a)
               Ty -- explicit type annotations
+  | Map (Expr a)
+        (Expr a)
+  | Group (Expr a)
+  | Fold (Expr a)
+         (Expr a)
+         (Expr a)
+  | Concat (Expr a)
   deriving (Show, Eq, Ord, Data, Typeable)
 
 makePrisms ''Expr

@@ -55,4 +55,4 @@ typeInferenceSpec =
       withParseResult fileParser "fn f(x : Int) -> [Int] { return 1; }" $ \decls ->
         withTransformed decls $ \transformed ->
           runInferM (inferType transformed) `shouldBe`
-          Left (TypeMismatch (TyArr TyInt) TyInt)
+          Left (ErrorIn (IntLit 1) (TypeMismatch (TyArr TyInt) TyInt))

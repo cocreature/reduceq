@@ -105,5 +105,12 @@ reducedTransformTests =
       \fn g(x : Int) -> Int {\
       \ return f(x);\
       \}"
-    , "((fun ▢ : Int \8594 Int. (fun ▢ : Int. (v1 v0))) f)")
+    , "((fun ▢ : Int → Int. (fun ▢ : Int. (v1 v0))) f)")
+  , ( "extern fn splitWords(doc : Int) -> [Int] {}\
+      \fn wordcount(docs : [Int]) -> [Int * Int] {\
+      \  words : [Int] = flatMap((doc : Int) => splitWords(doc), docs);\
+      \  wordTuples : [Int * Int] = map ((x : Int) => (x, 1), words);\
+      \  return reduceByKey((x : Int) (y : Int) => x + y, 0, wordTuples);\
+      \}"
+    , "((fun ▢ : Int → [Int]. (fun ▢ : [Int]. ((fun ▢ : [Int]. ((fun ▢ : [Int * Int]. (map (fun ▢ : Int * [Int]. ((fst v0), (fold (fun ▢ : Int * Int. ((fst v0) + (snd v0))) 0 (snd v0)))) (group v0))) (map (fun ▢ : Int. (v0, 1)) v0))) (concat (map (fun ▢ : Int. (v2 v0)) v0))))) splitWords)")
   ]

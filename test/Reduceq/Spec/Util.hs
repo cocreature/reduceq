@@ -35,7 +35,7 @@ withParseResult parser input cont =
 withType :: Coq.Expr Coq.VarId -> (Coq.Ty -> Expectation) -> Expectation
 withType expr cont =
   case runInferM (inferType expr) of
-    Left err -> (expectationFailure . toS . showInferError) err
+    Left err -> (expectationFailure . toS . Coq.displayCompact . showInferError) err
     Right ty -> cont ty
 
 withTypedReduced :: Text -> (Coq.Expr Coq.VarId  -> Coq.Ty -> Expectation) -> Expectation

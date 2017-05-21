@@ -9,7 +9,11 @@ module Reduceq.Coq.Typing
 import           Reduceq.Prelude
 
 import qualified Data.Map as Map
+import           Data.Text.Prettyprint.Doc
+import           Data.Text.Prettyprint.Doc.Render.Terminal
+
 import           Reduceq.Coq.AST
+import           Reduceq.Coq.Pretty
 
 type VarContext = Map VarId Ty
 
@@ -26,7 +30,10 @@ runInferM :: InferM a -> Either InferError a
 runInferM (InferM x) = runReader (runExceptT x) Map.empty
 
 data InferError
-  = TypeMismatch Ty Ty
+  = TypeMismatch Ty
+                 Ty
+  | ErrorIn (Expr VarId)
+            InferError
   | UnboundVariable VarId
   | AmbigousType Text
   | ExpectedFunction Ty
@@ -37,8 +44,19 @@ data InferError
   | ExpectedArr Ty
   deriving (Show, Eq, Ord)
 
-showInferError :: InferError -> Text
-showInferError = show
+showInferError :: InferError -> Doc AnsiTerminal
+showInferError (ErrorIn e err) =
+  vsep
+    [ "Type error:" <+> showInferError err
+    , "in expression:" <+> hang 4 (runPprintM (pprintExpr e))
+    ]
+showInferError (TypeMismatch actual expected) =
+  (hang 4 . sep)
+    [ "Type mismatch:"
+    , "expected" <+> bold (pprintTy expected)
+    , "but got" <+> bold (pprintTy actual) <> "."
+    ]
+showInferError err = pretty (show err :: Text)
 
 data TypedVar =
   TypedVar !VarId
@@ -50,6 +68,12 @@ shiftVarMap = Map.mapKeys succ
 
 withBoundVar :: Ty -> InferM a -> InferM a
 withBoundVar ty = local (Map.insert (VarId 0) ty . shiftVarMap)
+
+guardTyEqualIn :: Expr VarId -> Ty -> Ty -> InferM Ty
+guardTyEqualIn e ty1 ty2 =
+  if ty1 == ty2
+    then pure ty1
+    else throwError (ErrorIn e (TypeMismatch ty1 ty2))
 
 guardTyEqual :: Ty -> Ty -> InferM Ty
 guardTyEqual ty1 ty2 =
@@ -67,9 +91,9 @@ varTy id = do
 checkType :: Expr VarId -> Ty -> InferM Ty
 checkType (Var id) ty = do
   ty' <- varTy id
-  guardTyEqual ty ty'
+  guardTyEqualIn (Var id) ty ty'
 checkType (ExternRef (ExternReference _ ty')) ty = guardTyEqual ty' ty
-checkType (IntLit _) ty = guardTyEqual ty TyInt
+checkType lit@(IntLit _) ty = guardTyEqualIn lit ty TyInt
 checkType (App f x) ty = do
   argTy <- inferType x
   _ <- checkType f (TyFun argTy ty)
@@ -161,6 +185,9 @@ checkType Unit ty = guardTyEqual ty TyUnit
 checkType (Annotated e ty') ty = do
   _ <- guardTyEqual ty' ty
   checkType e ty
+checkType e ty = do
+  tyE <- inferType e
+  guardTyEqualIn e tyE ty
 
 inferType :: Expr VarId -> InferM Ty
 inferType (Var id) = varTy id
@@ -236,3 +263,32 @@ inferType (ReadAtKey arr key) = do
     _ -> throwError (ExpectedArr tyArr)
 inferType Unit = pure TyUnit
 inferType (Annotated e ty) = checkType e ty
+inferType (Map f xs) = do
+  tyF <- inferType f
+  case tyF of
+    TyFun tyDom tyCod -> checkType xs (TyArr tyDom) *> pure (TyArr tyCod)
+    _ -> throwError (ExpectedFunction tyF)
+inferType (Group xs) = do
+  tyXs <- inferType xs
+  case tyXs of
+    TyArr argTy ->
+      case argTy of
+        TyProd tyK tyV -> pure (TyArr (TyProd tyK (TyArr tyV)))
+        _ -> throwError (ExpectedProd argTy)
+    _ -> throwError (ExpectedArr tyXs)
+inferType (Fold f i xs) = do
+  tyF <- inferType f
+  tyI <- inferType i
+  case tyF of
+    TyFun (TyProd tyAcc tyX) dom
+      | dom == tyAcc ->
+        checkType xs (TyArr tyX) *> guardTyEqualIn i tyI tyAcc *> pure tyAcc
+    _ -> throwError (ExpectedFunction tyF)
+inferType (Concat xss) = do
+  tyXss <- inferType xss
+  case tyXss of
+    TyArr tyXs ->
+      case tyXs of
+        TyArr _ -> pure tyXs
+        _ -> throwError (ExpectedArr tyXs)
+    _ -> throwError (ExpectedArr tyXss)

@@ -5,13 +5,15 @@ module Reduceq.Coq.Pretty
   , pprintTy
   , PprintM
   , runPprintM
+  , AnsiTerminal
   ) where
 
 import           Reduceq.Prelude
 
 import qualified Data.Map as Map
 import           Data.Text.Prettyprint.Doc hiding ((<>))
-import           Data.Text.Prettyprint.Doc.Render.Terminal (Color(..), color, AnsiTerminal)
+import Data.Text.Prettyprint.Doc.Render.Terminal
+       (AnsiTerminal, Color(..), bold, color)
 import           Data.Text.Prettyprint.Doc.Render.Text
 
 import           Reduceq.Coq.AST
@@ -43,11 +45,12 @@ coloredVar :: VarId -> PprintM (Doc AnsiTerminal)
 coloredVar id@(VarId index) = do
   c <- asks (Map.lookup id)
   case c of
-    Nothing -> panic ("Unknown variable index: " <> show id)
+    Nothing -- It is possible that there are free variables in an expression
+     -> (pure . bold . pretty @Text) ("v" <> show index)
     Just c' -> (pure . color c' . pretty @Text) ("v" <> show index)
 
 varIdColors :: [Color]
-varIdColors = cycle [Red, Green, Yellow, Blue, Magenta, Cyan, Red]
+varIdColors = cycle [Red, Green, Yellow, Blue, Magenta, Cyan]
 
 pprintTy :: Ty -> Doc a
 pprintTy TyInt = "Int"
@@ -130,6 +133,21 @@ pprintExpr (ReadAtKey m key) =
 pprintExpr Unit = pure "()"
 pprintExpr (ExternRef (ExternReference name _)) = pure (pretty name)
 pprintExpr (Annotated e _) = pprintExpr e
+pprintExpr (Map f xs) = do
+  f' <- pprintExpr f
+  xs' <- pprintExpr xs
+  (pure . parens . hang 3 . sep) ["map", f', xs']
+pprintExpr (Group xs) = do
+  xs' <- pprintExpr xs
+  (pure . parens . hang 3 . sep) ["group", xs']
+pprintExpr (Concat xss) = do
+  xss' <- pprintExpr xss
+  (pure . parens . hang 3 . sep) ["concat", xss']
+pprintExpr (Fold f i xs) = do
+  f' <- pprintExpr f
+  i' <- pprintExpr i
+  xs' <- pprintExpr xs
+  (pure . parens . hang 3 . sep) ["fold", f', i', xs']
 
 displayDoc :: Doc a -> Text
 displayDoc = renderStrict . layoutPretty defaultLayoutOptions . unAnnotate
