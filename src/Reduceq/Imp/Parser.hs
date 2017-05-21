@@ -12,7 +12,6 @@ module Reduceq.Imp.Parser
 
 import           Reduceq.Prelude
 
-import           Data.Char
 import qualified Data.HashSet as HashSet
 import qualified Data.List.NonEmpty as NonEmpty
 import           Data.Semigroup.Reducer
@@ -70,10 +69,10 @@ identifier = ident varId
 varOp :: TokenParsing m => IdentifierStyle m
 varOp =
   IdentifierStyle
-  { _styleName = "variable operator"
-  , _styleStart = oneOf "!#$%&*+./<=>?@\\^|-~" <|> satisfy isSymbol
-  , _styleLetter = _styleStart varOp <|> char ':'
-  , _styleReserved = HashSet.fromList ["=", "+", "-", "*", ",", ":="]
+  { _styleName = "operator"
+  , _styleStart = oneOf []
+  , _styleLetter = oneOf []
+  , _styleReserved = HashSet.fromList ["=", "+", "-", "*", ",", ":=", "=>", ":"]
   , _styleHighlight = Operator
   , _styleReservedHighlight = ReservedOperator
   }
@@ -101,7 +100,7 @@ tyOp =
   }
 
 tyParser :: Parser Ty
-tyParser = buildExpressionParser table term
+tyParser = buildExpressionParser table term <?> "type"
   where
     term =
       choice
@@ -113,16 +112,35 @@ tyParser = buildExpressionParser table term
     tyBinary name op = Infix (op <$ reserve tyOp name) AssocLeft
 
 tyVarParser :: Parser TypedVar
-tyVarParser = do
-  name <- identifier
-  _ <- colon
-  ty <- tyParser
-  pure (TypedVar name ty)
+tyVarParser =
+  (do name <- identifier
+      _ <- colon
+      ty <- tyParser
+      pure (TypedVar name ty)) <?>
+  "typed variable"
 
 exprParser :: Parser Expr
-exprParser = buildExpressionParser table term
+exprParser = buildExpressionParser table term <?> "expression"
   where
-    term = choice [parens exprParser, VarRef <$> identifier, IntLit <$> natural]
+    term =
+      choice
+        [ lambda
+        , try pair
+        , parens exprParser
+        , VarRef <$> identifier
+        , IntLit <$> natural
+        ]
+    pair = do
+      parens
+        (do a <- exprParser
+            _ <- comma
+            b <- exprParser
+            pure (Pair a b))
+    lambda = do
+      args <- try (some1 (parens tyVarParser)) <?> "lambda arguments"
+      _ <- reserve varOp "=>"
+      body <- exprParser
+      pure (Lambda args body)
     table =
       [ [Postfix arrayRead, Postfix mapRead, Postfix functionCall]
       , [intBinary "*" IMul]
@@ -153,14 +171,15 @@ data AssgnLocation
   deriving (Show, Eq, Ord)
 
 assgnLocParser :: Parser AssgnLocation
-assgnLocParser = do
-  name <- identifier
-  index <-
-    optional (Left <$> brackets exprParser <|> Right <$> braces exprParser)
-  case index of
-    Nothing -> pure (VarLoc name)
-    Just (Left i) -> pure (ArrLoc name i)
-    Just (Right key) -> pure (MapLoc name key)
+assgnLocParser =
+  (do name <- identifier
+      index <-
+        optional (Left <$> brackets exprParser <|> Right <$> braces exprParser)
+      case index of
+        Nothing -> pure (VarLoc name)
+        Just (Left i) -> pure (ArrLoc name i)
+        Just (Right key) -> pure (MapLoc name key)) <?>
+  "assignment location"
 
 stmtParser :: Parser Stmt
 stmtParser = choice [while, ret, if_, varDecl, assgn] <?> "statement"

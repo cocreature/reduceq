@@ -132,6 +132,38 @@ functionParseTests =
            ]))
   , ( "extern fn f () -> Int {}"
     , FunctionDeclaration "f" [] TyInt ExternFunction)
+  , ( "fn wordcount(docs : [Int]) -> [Int * Int] {\
+      \  words : [Int] = flatMap((doc : Int) => splitWords(doc, docs));\
+      \  wordTuples : [Int * Int] = map ((x : Int) => (x, 1));\
+      \  return reduceByKey((x : Int) (y : Int) => x + y, wordTuples);\
+      \}"
+    , FunctionDeclaration
+        "wordcount"
+        [TypedVar "docs" (TyArr TyInt)]
+        (TyArr (TyProd TyInt TyInt))
+        (FunctionBody
+           [ VarDecl
+               (TypedVar "words" (TyArr TyInt))
+               (Call
+                  (VarRef "flatMap")
+                  [ Lambda
+                      [TypedVar "doc" TyInt]
+                      (Call (VarRef "splitWords") [VarRef "doc", VarRef "docs"])
+                  ])
+           , VarDecl
+               (TypedVar "wordTuples" (TyArr (TyProd TyInt TyInt)))
+               (Call
+                  (VarRef "map")
+                  [Lambda [TypedVar "x" TyInt] (Pair (VarRef "x") (IntLit 1))])
+           , Return
+               (Call
+                  (VarRef "reduceByKey")
+                  [ Lambda
+                      [TypedVar "x" TyInt, TypedVar "y" TyInt]
+                      (IntBinop IAdd (VarRef "x") (VarRef "y"))
+                  , VarRef "wordTuples"
+                  ])
+           ]))
   ]
 
 parserSpec :: Spec

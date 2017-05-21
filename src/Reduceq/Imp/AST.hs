@@ -84,10 +84,13 @@ data Expr
              !Expr -- SetAtKey map key val
   | Read !Expr
          !Expr -- Read array index
-  | ReadAtKey !Expr !Expr -- Read array key
+  | ReadAtKey !Expr
+              !Expr -- Read array key
   | Unit
   | Call !Expr
          !(NonEmpty Expr)
+  | Lambda !(NonEmpty TypedVar)
+           !Expr
   deriving (Show, Eq, Ord)
 
 data Stmt
