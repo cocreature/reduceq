@@ -9,6 +9,7 @@ module Reduceq.Transform
 
 import           Reduceq.Prelude
 
+import           Control.Lens
 import qualified Data.List.NonEmpty as NonEmpty
 import           Data.Map (Map)
 import qualified Data.Map as Map
@@ -48,12 +49,16 @@ newtype TransformM a =
            , MonadError TransformError
            )
 
-withBoundVar :: Imp.TypedVar -> TransformM Coq.Expr -> TransformM Coq.Expr
-withBoundVar (Imp.TypedVar name ty) =
+withAnonVar :: Imp.TypedVar -> TransformM Coq.Expr -> TransformM Coq.Expr
+withAnonVar (Imp.TypedVar name ty) =
   local
-    (Map.insert name (Coq.Var $ Coq.VarId 0, ty) .
-     Map.map (first Coq.shiftVars)) .
-  fmap (Coq.Abs (transformTy ty))
+    (Map.insert name (Coq.Var (Coq.VarId 0), ty) . Map.map (first Coq.shiftVars))
+
+-- | 'withBoundVar' behaves like 'withAnonVar' but also wraps the
+-- expression in a lambda that binds the variable
+withBoundVar :: Imp.TypedVar -> TransformM Coq.Expr -> TransformM Coq.Expr
+withBoundVar var@(Imp.TypedVar name ty) =
+  withAnonVar var . fmap (Coq.Abs (transformTy ty))
 
 withAnonBoundVar :: Coq.Ty -> TransformM Coq.Expr -> TransformM Coq.Expr
 withAnonBoundVar ty = local (Map.map (first Coq.shiftVars)) . fmap (Coq.Abs ty)
@@ -113,10 +118,10 @@ transformAssgnLoc id = do
     Just (_, ty) -> pure (Imp.TypedVar id ty)
 
 collectAssgns :: [Imp.Stmt] -> TransformM (Set Imp.TypedVar)
-collectAssgns = fmap mconcat . mapM collectAssgns'
-  where
-   collectAssgns' (Imp.Assgn loc _) = Set.singleton <$> transformAssgnLoc loc
-   collectAssgns' _ = pure (Set.empty)
+collectAssgns =
+  fmap mconcat .
+  mapM (fmap Set.singleton . transformAssgnLoc) .
+  toListOf (traverse . Imp.collectAssgnLocs)
 
 toTuple :: [Imp.TypedVar] -> Imp.Expr
 toTuple vars =
@@ -125,8 +130,8 @@ toTuple vars =
     [var] -> var
     vars' -> foldr1 Imp.Pair vars'
 
-refAsTuple :: [Imp.TypedVar] -> VarContext
-refAsTuple vars =
+refAsTuple :: Coq.Expr -> [Imp.TypedVar] -> VarContext
+refAsTuple tupleRef vars =
   case vars of
     [] -> Map.empty
     [Imp.TypedVar id ty] -> Map.singleton id (tupleRef, ty)
@@ -136,8 +141,6 @@ refAsTuple vars =
           refs = reverse (last' : map Coq.Fst init')
       in Map.fromList
            (zipWith (\(Imp.TypedVar id ty) ref -> (id, (ref, ty))) vars' refs)
-  where
-    tupleRef = Coq.Var (Coq.VarId 0)
 
 tupleType :: [Imp.Ty] -> Coq.Ty
 tupleType vars =
@@ -157,8 +160,19 @@ withVarsAsTuple :: [Imp.TypedVar]
                 -> TransformM Coq.Expr
                 -> TransformM Coq.Expr
 withVarsAsTuple vars =
-  local (Map.union (refAsTuple vars) . Map.map (first Coq.shiftVars)) .
+  local (Map.union (refAsTuple (Coq.Var (Coq.VarId 0)) vars) . Map.map (first Coq.shiftVars)) .
   fmap (Coq.Abs (tupleType (map Imp.varType vars)))
+
+-- Used in folds. The first expression represents the name of the
+-- bound array element.
+withAccVarsAsTuple :: Imp.TypedVar -> [Imp.TypedVar] -> TransformM Coq.Expr -> TransformM Coq.Expr
+withAccVarsAsTuple (Imp.TypedVar elName elTy) vars =
+  local
+    (Map.insert elName (Coq.Snd (Coq.Var (Coq.VarId 0)), elTy) .
+     Map.union (refAsTuple (Coq.Fst (Coq.Var (Coq.VarId 0))) vars) .
+     Map.map (first Coq.shiftVars)) .
+  fmap
+    (Coq.Abs (Coq.TyProd (tupleType (map Imp.varType vars)) (transformTy elTy)))
 
 transformStmts :: [Imp.Stmt] -> TransformM Coq.Expr
 transformStmts [] = throwError MissingReturnStmt
@@ -166,8 +180,9 @@ transformStmts (Imp.Return e:_) = transformExpr e
 transformStmts (Imp.Assgn loc val:stmts) = do
   loc' <- transformAssgnLoc loc
   Coq.App <$> withBoundVar loc' (transformStmts stmts) <*> transformExpr val
-transformStmts (Imp.VarDecl tyVar val:stmts) =
-  Coq.App <$> withBoundVar tyVar (transformStmts stmts) <*> transformExpr val
+transformStmts (Imp.VarDecl tyVar@(Imp.TypedVar _ ty) val:stmts) =
+  Coq.App <$> withBoundVar tyVar (transformStmts stmts) <*>
+  ((`Coq.Annotated` transformTy ty) <$> transformExpr val)
 transformStmts (Imp.If cond ifTrue ifFalse:stmts) = do
   assignments <- Set.toList <$> (
     Set.union <$> collectAssgns ifTrue <*> collectAssgns (fromMaybe [] ifFalse))
@@ -177,8 +192,17 @@ transformStmts (Imp.If cond ifTrue ifFalse:stmts) = do
   Coq.App <$> withVarsAsTuple assignments (transformStmts stmts) <*>
     (Coq.If <$> transformExpr cond <*> transformStmts ifTrue' <*>
      transformStmts ifFalse')
+transformStmts (Imp.Match x (Imp.MatchClause l ifL) (Imp.MatchClause r ifR):stmts) = do
+  assignments <-
+    Set.toList <$> (Set.union <$> collectAssgns ifL <*> collectAssgns ifR)
+  let retModified = Imp.Return (toTuple assignments)
+      ifL' = ifL ++ [retModified]
+      ifR' = ifR ++ [retModified]
+  Coq.App <$> withVarsAsTuple assignments (transformStmts stmts) <*>
+    (Coq.Case <$> transformExpr x <*> withAnonVar l (transformStmts ifL') <*>
+     withAnonVar r (transformStmts ifR'))
 transformStmts (Imp.While cond body:stmts) = do
-  assignments <- Set.toList <$> (collectAssgns body)
+  assignments <- Set.toList <$> collectAssgns body
   let retModified = Imp.Return (Imp.Inr (toTuple assignments))
       body' = body ++ [retModified]
   coqInit <- varsAsTuple assignments
@@ -189,6 +213,15 @@ transformStmts (Imp.While cond body:stmts) = do
        pure (Coq.Inl Coq.Unit))
   stmts' <- withVarsAsTuple assignments (transformStmts stmts)
   pure (Coq.App stmts' (Coq.Iter coqBody coqInit))
+transformStmts (Imp.ForEach var array body:stmts) = do
+  assignments <- Set.toList <$> collectAssgns body
+  let retModified = Imp.Return (toTuple assignments)
+      body' = body ++ [retModified]
+  coqArray <- transformExpr array
+  coqBody <- withAccVarsAsTuple var assignments (transformStmts body')
+  coqInit <- varsAsTuple assignments
+  stmts' <- withVarsAsTuple assignments (transformStmts stmts)
+  pure (Coq.App stmts' (Coq.Fold coqBody coqInit coqArray))
 
 transformExpr :: Imp.Expr -> TransformM Coq.Expr
 transformExpr (Imp.VarRef id) = varRef id
@@ -254,6 +287,7 @@ transformExpr (Imp.Call fun args) =
     (\arg f -> Coq.App <$> f <*> transformExpr arg)
     (transformExpr fun)
     args
+transformExpr Imp.EmptyArray = pure (Coq.List [])
 
 transformTy :: Imp.Ty -> Coq.Ty
 transformTy Imp.TyInt = Coq.TyInt

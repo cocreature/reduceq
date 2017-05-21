@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskell #-}
 module Reduceq.Imp.AST
   ( VarId(..)
   , Decl(..)
@@ -6,35 +7,41 @@ module Reduceq.Imp.AST
   , FunDecl(..)
   , IntBinop(..)
   , IntComp(..)
+  , MatchClause(..)
   , Stmt(..)
   , Ty(..)
   , TypedVar(..)
   , funDeclTy
+  , collectAssgnLocs
   ) where
 
 import Reduceq.Prelude
 
+import Control.Lens
 import Data.Data
 
-newtype VarId = VarId Text deriving (Show, Eq, Ord, IsString)
+newtype VarId = VarId Text deriving (Show, Eq, Ord, IsString, Data)
 
 data Decl = FunDecl !FunDecl deriving (Show, Eq, Ord)
 
 data Ty
-  = TyInt
+  = TyUnit
+  | TyInt
   | TyReal
   | TyBool
-  | TyProd !Ty !Ty
-  | TySum !Ty !Ty
+  | TyProd !Ty
+           !Ty
+  | TySum !Ty
+          !Ty
   | TyArr !Ty
   | TyFun ![Ty]
           !Ty
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Data)
 
 data TypedVar = TypedVar
   { varName :: !VarId
   , varType :: !Ty
-  } deriving (Show, Eq, Ord)
+  } deriving (Show, Eq, Ord, Data)
 
 data FunctionBody
   = ExternFunction
@@ -91,7 +98,14 @@ data Expr
          !(NonEmpty Expr)
   | Lambda !(NonEmpty TypedVar)
            !Expr
-  deriving (Show, Eq, Ord)
+  | EmptyArray
+  deriving (Show, Eq, Ord, Data)
+
+-- | @| var : ty => { stmts }@
+data MatchClause =
+  MatchClause !TypedVar
+              ![Stmt]
+  deriving (Show, Eq, Ord, Data)
 
 data Stmt
   = Return !Expr
@@ -104,4 +118,17 @@ data Stmt
        !(Maybe [Stmt]) -- ^ optional else block
   | While !Expr
           ![Stmt]
-  deriving (Show, Eq, Ord)
+  | ForEach !TypedVar
+            !Expr
+            ![Stmt] -- for (var : expr) { stmts }
+  | Match !Expr
+          !MatchClause
+          !MatchClause
+  deriving (Show, Eq, Ord, Data)
+
+instance Plated Stmt where
+
+makePrisms ''Stmt
+
+collectAssgnLocs :: Fold Stmt VarId
+collectAssgnLocs = cosmos . _Assgn . _1

@@ -82,11 +82,11 @@ pprintExpr (Inr x) =
 pprintExpr (Set arr index val) =
   parens ("twrite" <+> pprintExpr arr <+> pprintExpr index <+> pprintExpr val)
 pprintExpr (SetAtKey arr key val) =
-  parens ("twrite_at_key" <+> pprintExpr arr <+> pprintExpr key <+> pprintExpr val)
+  pprintApp "tset_at_key" [pprintExpr key, pprintExpr val, pprintExpr arr]
 pprintExpr (Read arr index) =
   parens ("tread" <+> pprintExpr arr <+> pprintExpr index)
 pprintExpr (ReadAtKey arr key) =
-  parens ("tread_at_key" <+> pprintExpr arr <+> pprintExpr key)
+  pprintApp "tread_at_key" [pprintExpr key, pprintExpr arr]
 pprintExpr Unit = "tunit"
 pprintExpr (Annotated e _) = pprintExpr e
 pprintExpr (Map f xs) =
@@ -96,6 +96,7 @@ pprintExpr (Group xs) =
 pprintExpr (Fold f i xs) =
   pprintApp "tfold" [pprintExpr f, pprintExpr i, pprintExpr xs]
 pprintExpr (Concat xss) = parens ("tconcat" <+> pprintExpr xss)
+pprintExpr (List xs) = parens ("tlist" <+> list (map pprintExpr xs))
 
 pprintTypingJudgement :: Text -> [ExternReference] -> Ty -> Doc a
 pprintTypingJudgement name externRefs ty =
@@ -148,7 +149,9 @@ pprintExprDefinition name expr =
 pprintExample :: Expr -> Ty -> Doc a
 pprintExample expr ty =
   vsep
-    [ "Require Import Term Typing."
+    [ "Require Import Coq.Lists.List."
+    , "Import ListNotations."
+    , "Require Import Term Typing."
     , pprintExprDefinition "example" expr
     , pprintTypingLemma "example" expr ty
     , mempty

@@ -94,7 +94,7 @@ tyOp =
   { _styleName = "type operator"
   , _styleStart = oneOf ""
   , _styleLetter = oneOf ""
-  , _styleReserved = HashSet.fromList ["*", "+"]
+  , _styleReserved = HashSet.fromList ["*", "+", "()"]
   , _styleHighlight = Operator
   , _styleReservedHighlight = ReservedOperator
   }
@@ -104,7 +104,8 @@ tyParser = buildExpressionParser table term <?> "type"
   where
     term =
       choice
-        [ parens tyParser
+        [ TyUnit <$ reserve tyOp "()"
+        , parens tyParser
         , TyInt <$ reserve tyId "Int"
         , TyArr <$> brackets tyParser
         ]
@@ -123,7 +124,14 @@ exprParser :: Parser Expr
 exprParser = buildExpressionParser table term <?> "expression"
   where
     term =
-      choice [lambda, parenthesized, VarRef <$> identifier, IntLit <$> natural]
+      choice
+        [ emptyArray
+        , lambda
+        , parenthesized
+        , VarRef <$> identifier
+        , IntLit <$> natural
+        ]
+    emptyArray = EmptyArray <$ reserve varOp "[]"
     parenthesized =
       parens
         (do a <- exprParser
@@ -180,7 +188,8 @@ assgnLocParser =
   "assignment location"
 
 stmtParser :: Parser Stmt
-stmtParser = choice [while, ret, if_, varDecl, assgn] <?> "statement"
+stmtParser =
+  choice [while, forEach, match, ret, if_, varDecl, assgn] <?> "statement"
   where
     ret =
       (do reserve varId "return"
@@ -211,6 +220,32 @@ stmtParser = choice [while, ret, if_, varDecl, assgn] <?> "statement"
           body <- braces (many stmtParser)
           pure (While cond body)) <?>
       "while loop"
+    forEach =
+      (do reserve varId "for"
+          (var, expr) <-
+            parens
+              (do id <- parens tyVarParser <?> "typed variable"
+                  _ <- colon
+                  array <- exprParser
+                  pure (id, array))
+          body <- braces (many stmtParser)
+          pure (ForEach var expr body)) <?>
+      "for loop"
+    matchClause =
+      (do reserve varOp "|"
+          var <- tyVarParser
+          reserve varOp "=>"
+          body <- braces (many stmtParser)
+          pure (MatchClause var body))
+    match =
+      (do reserve varId "match"
+          x <- exprParser
+          reserve varId "with"
+          ifL <- matchClause
+          ifR <- matchClause
+          reserve varId "end"
+          pure (Match x ifL ifR)) <?>
+      "match"
     if_ =
       (do reserve varId "if"
           cond <- parens exprParser

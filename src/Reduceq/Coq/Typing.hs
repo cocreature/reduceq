@@ -180,11 +180,16 @@ checkType (Read arr index) ty = do
 checkType (ReadAtKey arr key) ty = do
   tyKey <- inferType key
   _ <- checkType arr (TyProd tyKey ty)
-  pure ty
+  pure (TySum TyUnit ty)
 checkType Unit ty = guardTyEqual ty TyUnit
 checkType (Annotated e ty') ty = do
   _ <- guardTyEqual ty' ty
   checkType e ty
+checkType (List xs) ty =
+  case ty of
+    TyArr tyEl ->
+      ty <$ traverse_ (`checkType` tyEl) xs
+    _ -> throwError (ExpectedArr ty)
 checkType e ty = do
   tyE <- inferType e
   guardTyEqualIn e tyE ty
@@ -259,7 +264,7 @@ inferType (ReadAtKey arr key) = do
   case tyArr of
     TyArr (TyProd tyKey tyVal) -> do
       _ <- checkType key tyKey
-      pure tyVal
+      pure (TySum TyUnit tyVal)
     _ -> throwError (ExpectedArr tyArr)
 inferType Unit = pure TyUnit
 inferType (Annotated e ty) = checkType e ty
@@ -292,3 +297,8 @@ inferType (Concat xss) = do
         TyArr _ -> pure tyXs
         _ -> throwError (ExpectedArr tyXs)
     _ -> throwError (ExpectedArr tyXss)
+inferType (List xss) = do
+  tys <- traverse inferType xss
+  case tys of
+    (t:ts) -> traverse_ (guardTyEqual t) ts *> pure (TyArr t)
+    _ -> panic "Cannot infer type of empty list literal"

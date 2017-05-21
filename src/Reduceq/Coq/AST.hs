@@ -93,6 +93,7 @@ data Expr
          Expr
          Expr
   | Concat Expr
+  | List [Expr]
   deriving (Show, Eq, Ord, Data, Typeable)
 
 makePrisms ''Expr
@@ -130,11 +131,13 @@ substAt id substitute expr = go expr
         (go c)
         (substAt (succ id) substitute x)
         (substAt (succ id) substitute y)
-    go e = e & plate %~ go
+    go e = over plate go e
 
 betaReduce :: Expr -> Expr
 betaReduce =
   transform $ \e ->
     case e of
       (App (Abs _ body) lit@(IntLit _)) -> substAt (VarId 0) lit body
+      (App (Abs _ body) lit@(Annotated (IntLit _) TyInt)) ->
+        substAt (VarId 0) lit body
       _ -> e

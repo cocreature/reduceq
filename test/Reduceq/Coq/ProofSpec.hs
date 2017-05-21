@@ -51,7 +51,9 @@ coqProofSingleTests =
   [ ( "fn f(x : Int) -> Int {\
       \  return x + 1;\
       \}"
-    , "Require Import Term Typing.\n\
+    , "Require Import Coq.Lists.List.\n\
+      \Import ListNotations.\n\
+      \Require Import Term Typing.\n\
       \Definition example :=\n\
       \  (tabs TInt (tint_binop Add (tvar 0) (tint 1))).\n\
       \Lemma example_typing :\n\
@@ -61,7 +63,9 @@ coqProofSingleTests =
       \fn f(x : Int) -> Int {\
       \ return g(x);\
       \}"
-    , "Require Import Term Typing.\n\
+    , "Require Import Coq.Lists.List.\n\
+      \Import ListNotations.\n\
+      \Require Import Term Typing.\n\
       \Definition example g :=\n\
       \  (tapp (tabs (TArrow TInt TInt)\n\
       \              (tabs TInt (tapp (tvar 1) (tvar 0))))\n\
@@ -76,7 +80,9 @@ coqProofSingleTests =
       \  wordTuples : [Int * Int] = map ((x : Int) => (x, 1), words);\n\
       \  return reduceByKey((x : Int) (y : Int) => x + y, 0, wordTuples);\n\
       \}"
-    , "Require Import Term Typing.\n\
+    , "Require Import Coq.Lists.List.\n\
+      \Import ListNotations.\n\
+      \Require Import Term Typing.\n\
       \Definition example splitWords :=\n\
       \  (tapp (tabs (TArrow TInt (TList Local TInt))\n\
       \              (tabs (TList Local TInt)\n\
@@ -93,6 +99,60 @@ coqProofSingleTests =
       \                                            (tvar 0))))\n\
       \                          (tconcat (tmap (tabs TInt (tapp (tvar 2) (tvar 0)))\n\
       \                                         (tvar 0))))))\n\
+      \        splitWords).\n\
+      \Lemma example_typing :\n\
+      \  forall splitWords, empty_ctx |-- splitWords \\in (TArrow TInt\n\
+      \                                                     (TList Local TInt)) ->\n\
+      \                empty_ctx |-- example splitWords \\in (TArrow (TList Local TInt)\n\
+      \                                                             (TList Local (TProd  TInt TInt))).\n\
+      \Proof. unfold example. repeat econstructor; eauto. Qed.\n")
+  , ( "extern fn splitWords(doc : Int) -> [Int] {}\n\
+      \fn wordcount(docs : [Int]) -> [Int * Int] {\n\
+      \  map : [Int * Int] = [];\n\
+      \  for ((doc : Int) : docs) {\n\
+      \    words : [Int] = splitWords(doc);\n\
+      \    for ((word : Int) : words) {\n\
+      \      match map{word} with\n\
+      \      | l : () => { map{word} := 1; }\n\
+      \      | r : Int => { map{word} := r + 1; }\n\
+      \      end\n\
+      \    }\n\
+      \  }\n\
+      \  return map;\n\
+      \}\n"
+    , "Require Import Coq.Lists.List.\n\
+      \Import ListNotations.\n\
+      \Require Import Term Typing.\n\
+      \Definition example splitWords :=\n\
+      \  (tapp (tabs (TArrow TInt (TList Local TInt))\n\
+      \              (tabs (TList Local TInt)\n\
+      \                    (tapp (tabs (TList Local (TProd  TInt TInt))\n\
+      \                                (tapp (tabs (TList Local (TProd  TInt TInt))\n\
+      \                                            (tvar 0))\n\
+      \                                      (tfold (tabs (TProd  (TList Local (TProd  TInt TInt)) TInt)\n\
+      \                                                   (tapp (tabs (TList Local TInt)\n\
+      \                                                               (tapp (tabs (TList Local (TProd  TInt TInt))\n\
+      \                                                                           (tvar 0))\n\
+      \                                                                     (tfold (tabs (TProd  (TList Local (TProd  TInt TInt)) TInt)\n\
+      \                                                                                  (tapp (tabs (TList Local (TProd  TInt TInt))\n\
+      \                                                                                              (tvar 0))\n\
+      \                                                                                        (tcase (tread_at_key (tsnd (tvar 0))\n\
+      \                                                                                                             (tfst (tvar 0))) (tapp (tabs (TList Local (TProd  TInt TInt))\n\
+      \                                                                                                                                          (tvar 0))\n\
+      \                                                                                                                                    (tset_at_key (tsnd (tvar 1))\n\
+      \                                                                                                                                                 (tint 1)\n\
+      \                                                                                                                                                 (tfst (tvar 1)))) (tapp (tabs (TList Local (TProd  TInt TInt))\n\
+      \                                                                                                                                                                               (tvar 0))\n\
+      \                                                                                                                                                                         (tset_at_key (tsnd (tvar 1))\n\
+      \                                                                                                                                                                                      (tint_binop Add (tvar 0) (tint 1))\n\
+      \                                                                                                                                                                                      (tfst (tvar 1)))))))\n\
+      \                                                                            (tfst (tvar 1))\n\
+      \                                                                            (tvar 0))))\n\
+      \                                                         (tapp (tvar 3)\n\
+      \                                                               (tsnd (tvar 0)))))\n\
+      \                                             (tvar 0)\n\
+      \                                             (tvar 1))))\n\
+      \                          (tlist []))))\n\
       \        splitWords).\n\
       \Lemma example_typing :\n\
       \  forall splitWords, empty_ctx |-- splitWords \\in (TArrow TInt\n\
