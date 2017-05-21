@@ -12,7 +12,7 @@ import           Reduceq.Prelude
 
 import qualified Data.Map as Map
 import           Data.Text.Prettyprint.Doc hiding ((<>))
-import Data.Text.Prettyprint.Doc.Render.Terminal
+import           Data.Text.Prettyprint.Doc.Render.Terminal
        (AnsiTerminal, Color(..), bold, color)
 import           Data.Text.Prettyprint.Doc.Render.Text
 
@@ -150,7 +150,9 @@ pprintExpr (Fold f i xs) = do
   (pure . parens . hang 3 . sep) ["fold", f', i', xs']
 
 displayDoc :: Doc a -> Text
-displayDoc = renderStrict . layoutPretty defaultLayoutOptions . unAnnotate
+displayDoc =
+  renderStrict .
+  layoutPretty (LayoutOptions (AvailablePerLine 80 0.8)) . unAnnotate
 
 displayCompact :: Doc a -> Text
 displayCompact =

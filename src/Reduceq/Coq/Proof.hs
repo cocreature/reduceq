@@ -27,8 +27,8 @@ pprintTy ty =
     TyBool -> "TBool"
     TyUnit -> "TUnit"
     TyProd x y -> parens ("TProd " <+> pprintTy x <+> pprintTy y)
-    TyArr t -> parens ("TList" <+> pprintTy t)
-    TyFun cod dom -> parens ("TArrow" <+> pprintTy cod <+> pprintTy dom)
+    TyArr t -> parens ("TList" <+> "Local" <+> pprintTy t)
+    TyFun cod dom -> pprintApp "TArrow" [pprintTy cod, pprintTy dom]
     TySum l r -> parens ("TSum" <+> pprintTy l <+> pprintTy r)
 
 pprintOp :: IntBinop -> Doc a
@@ -45,6 +45,9 @@ pprintComp comp =
     ILt -> "Lt"
     IGt -> "Gt"
 
+pprintApp :: Doc a -> [Doc a] -> Doc a
+pprintApp f xs = parens (f <+> align (sep xs))
+
 pprintExpr :: Expr -> Doc a
 pprintExpr (Var id) = pprintVar id
 pprintExpr (ExternRef (ExternReference name _)) = pretty name
@@ -54,8 +57,8 @@ pprintExpr (IntLit i) =
         | otherwise = parens (pretty i)
   in parens ("tint" <+> lit)
 pprintExpr (App f x) =
-  (parens . align) ("tapp" <+> pprintExpr f <+> pprintExpr x)
-pprintExpr (Abs ty body) = parens ("tabs" <+> pprintTy ty <+> pprintExpr body)
+  pprintApp "tapp" [pprintExpr f, pprintExpr x]
+pprintExpr (Abs ty body) = pprintApp "tabs" [pprintTy ty, pprintExpr body]
 pprintExpr (Case x ifL ifR) =
   (parens . hang 3 . Pretty.group)
     ("tcase" <+> pprintExpr x <+> pprintExpr ifL <+> pprintExpr ifR)
@@ -86,6 +89,13 @@ pprintExpr (ReadAtKey arr key) =
   parens ("tread_at_key" <+> pprintExpr arr <+> pprintExpr key)
 pprintExpr Unit = "tunit"
 pprintExpr (Annotated e _) = pprintExpr e
+pprintExpr (Map f xs) =
+  pprintApp "tmap" [pprintExpr f, pprintExpr xs]
+pprintExpr (Group xs) =
+  parens ("tgroup" <+> pprintExpr xs)
+pprintExpr (Fold f i xs) =
+  pprintApp "tfold" [pprintExpr f, pprintExpr i, pprintExpr xs]
+pprintExpr (Concat xss) = parens ("tconcat" <+> pprintExpr xss)
 
 pprintTypingJudgement :: Text -> [ExternReference] -> Ty -> Doc a
 pprintTypingJudgement name externRefs ty =
@@ -127,7 +137,10 @@ hsep' docs
 
 pprintExprDefinition :: Text -> Expr -> Doc a
 pprintExprDefinition name expr =
-  "Definition" <+> pretty name <> parameters <+> ":=" <+> pprintExpr expr <> "."
+  (hang 2 . sep)
+    [ "Definition" <+> pretty name <> parameters <+> ":="
+    , pprintExpr expr <> "."
+    ]
   where
     externRefs = collectExternReferences expr
     parameters = hsep' (map (pretty . refName) externRefs)

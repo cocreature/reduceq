@@ -34,7 +34,7 @@ testProofSingleSpec input output =
     withTransformed decls $ \transformed ->
       let reduced = betaReduce transformed
       in withType reduced $ \ty ->
-           displayCompact (pprintExample reduced ty) `shouldBe` output
+           displayDoc (pprintExample reduced ty) `shouldBe` output
 
 testProofSpec :: Text -> Text -> Text -> Expectation
 testProofSpec imperativeInp mapreduceInp output =
@@ -52,7 +52,8 @@ coqProofSingleTests =
       \  return x + 1;\
       \}"
     , "Require Import Term Typing.\n\
-      \Definition example := (tabs TInt (tint_binop Add (tvar 0) (tint 1))).\n\
+      \Definition example :=\n\
+      \  (tabs TInt (tint_binop Add (tvar 0) (tint 1))).\n\
       \Lemma example_typing :\n\
       \  empty_ctx |-- example \\in (TArrow TInt TInt).\n\
       \Proof. unfold example. repeat econstructor; eauto. Qed.\n")
@@ -61,10 +62,43 @@ coqProofSingleTests =
       \ return g(x);\
       \}"
     , "Require Import Term Typing.\n\
-      \Definition example g := (tapp (tabs (TArrow TInt TInt) (tabs TInt (tapp (tvar 1) (tvar 0)))) g).\n\
+      \Definition example g :=\n\
+      \  (tapp (tabs (TArrow TInt TInt)\n\
+      \              (tabs TInt (tapp (tvar 1) (tvar 0))))\n\
+      \        g).\n\
       \Lemma example_typing :\n\
       \  forall g, empty_ctx |-- g \\in (TArrow TInt TInt) ->\n\
       \       empty_ctx |-- example g \\in (TArrow TInt TInt).\n\
+      \Proof. unfold example. repeat econstructor; eauto. Qed.\n")
+  , ( "extern fn splitWords(doc : Int) -> [Int] {}\n\
+      \fn wordcount(docs : [Int]) -> [Int * Int] {\n\
+      \  words : [Int] = flatMap((doc : Int) => splitWords(doc), docs);\n\
+      \  wordTuples : [Int * Int] = map ((x : Int) => (x, 1), words);\n\
+      \  return reduceByKey((x : Int) (y : Int) => x + y, 0, wordTuples);\n\
+      \}"
+    , "Require Import Term Typing.\n\
+      \Definition example splitWords :=\n\
+      \  (tapp (tabs (TArrow TInt (TList Local TInt))\n\
+      \              (tabs (TList Local TInt)\n\
+      \                    (tapp (tabs (TList Local TInt)\n\
+      \                                (tapp (tabs (TList Local (TProd  TInt TInt))\n\
+      \                                            (tmap (tabs (TProd  TInt (TList Local TInt))\n\
+      \                                                        (tpair (tfst (tvar 0)) (tfold (tabs (TProd  TInt TInt)\n\
+      \                                                                                            (tint_binop Add (tfst (tvar 0)) (tsnd (tvar 0))))\n\
+      \                                                                                      (tint 0)\n\
+      \                                                                                      (tsnd (tvar 0)))))\n\
+      \                                                  (tgroup (tvar 0))))\n\
+      \                                      (tmap (tabs TInt\n\
+      \                                                  (tpair (tvar 0) (tint 1)))\n\
+      \                                            (tvar 0))))\n\
+      \                          (tconcat (tmap (tabs TInt (tapp (tvar 2) (tvar 0)))\n\
+      \                                         (tvar 0))))))\n\
+      \        splitWords).\n\
+      \Lemma example_typing :\n\
+      \  forall splitWords, empty_ctx |-- splitWords \\in (TArrow TInt\n\
+      \                                                     (TList Local TInt)) ->\n\
+      \                empty_ctx |-- example splitWords \\in (TArrow (TList Local TInt)\n\
+      \                                                             (TList Local (TProd  TInt TInt))).\n\
       \Proof. unfold example. repeat econstructor; eauto. Qed.\n")
   ]
 
