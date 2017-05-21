@@ -123,24 +123,22 @@ exprParser :: Parser Expr
 exprParser = buildExpressionParser table term <?> "expression"
   where
     term =
-      choice
-        [ lambda
-        , try pair
-        , parens exprParser
-        , VarRef <$> identifier
-        , IntLit <$> natural
-        ]
-    pair = do
+      choice [lambda, parenthesized, VarRef <$> identifier, IntLit <$> natural]
+    parenthesized =
       parens
         (do a <- exprParser
-            _ <- comma
-            b <- exprParser
-            pure (Pair a b))
+            let pair = do
+                  _ <- comma
+                  b <- exprParser <?> "second pair element"
+                  pure (Pair a b)
+            pair <|> pure a)
     lambda = do
-      args <- try (some1 (parens tyVarParser)) <?> "lambda arguments"
+      let argument = parens tyVarParser <?> "lambda argument"
+      arg <- try argument
+      args <- many argument
       _ <- reserve varOp "=>"
       body <- exprParser
-      pure (Lambda args body)
+      pure (Lambda (arg :| args) body)
     table =
       [ [Postfix arrayRead, Postfix mapRead, Postfix functionCall]
       , [intBinary "*" IMul]
