@@ -137,7 +137,10 @@ betaReduce :: Expr -> Expr
 betaReduce =
   transform $ \e ->
     case e of
+      -- TODO Find a more robust solution for working0with Annotated
       (App (Abs _ body) lit@(IntLit _)) -> substAt (VarId 0) lit body
       (App (Abs _ body) lit@(Annotated (IntLit _) TyInt)) ->
         substAt (VarId 0) lit body
+      (App (Abs ty (Var (VarId 0))) arg) ->
+        Annotated arg ty
       _ -> e

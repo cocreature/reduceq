@@ -148,6 +148,8 @@ pprintExpr (Fold f i xs) = do
   i' <- pprintExpr i
   xs' <- pprintExpr xs
   (pure . parens . hang 3 . sep) ["fold", f', i', xs']
+pprintExpr (List xs) =
+  list <$> mapM pprintExpr xs
 
 displayDoc :: Doc a -> Text
 displayDoc =

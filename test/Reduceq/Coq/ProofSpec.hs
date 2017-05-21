@@ -127,31 +127,21 @@ coqProofSingleTests =
       \  (tapp (tabs (TArrow TInt (TList Local TInt))\n\
       \              (tabs (TList Local TInt)\n\
       \                    (tapp (tabs (TList Local (TProd  TInt TInt))\n\
-      \                                (tapp (tabs (TList Local (TProd  TInt TInt))\n\
-      \                                            (tvar 0))\n\
-      \                                      (tfold (tabs (TProd  (TList Local (TProd  TInt TInt)) TInt)\n\
-      \                                                   (tapp (tabs (TList Local TInt)\n\
-      \                                                               (tapp (tabs (TList Local (TProd  TInt TInt))\n\
-      \                                                                           (tvar 0))\n\
-      \                                                                     (tfold (tabs (TProd  (TList Local (TProd  TInt TInt)) TInt)\n\
-      \                                                                                  (tapp (tabs (TList Local (TProd  TInt TInt))\n\
-      \                                                                                              (tvar 0))\n\
-      \                                                                                        (tcase (tread_at_key (tsnd (tvar 0))\n\
-      \                                                                                                             (tfst (tvar 0))) (tapp (tabs (TList Local (TProd  TInt TInt))\n\
-      \                                                                                                                                          (tvar 0))\n\
-      \                                                                                                                                    (tset_at_key (tsnd (tvar 1))\n\
-      \                                                                                                                                                 (tint 1)\n\
-      \                                                                                                                                                 (tfst (tvar 1)))) (tapp (tabs (TList Local (TProd  TInt TInt))\n\
-      \                                                                                                                                                                               (tvar 0))\n\
-      \                                                                                                                                                                         (tset_at_key (tsnd (tvar 1))\n\
-      \                                                                                                                                                                                      (tint_binop Add (tvar 0) (tint 1))\n\
-      \                                                                                                                                                                                      (tfst (tvar 1)))))))\n\
-      \                                                                            (tfst (tvar 1))\n\
-      \                                                                            (tvar 0))))\n\
-      \                                                         (tapp (tvar 3)\n\
-      \                                                               (tsnd (tvar 0)))))\n\
-      \                                             (tvar 0)\n\
-      \                                             (tvar 1))))\n\
+      \                                (tfold (tabs (TProd  (TList Local (TProd  TInt TInt)) TInt)\n\
+      \                                             (tapp (tabs (TList Local TInt)\n\
+      \                                                         (tfold (tabs (TProd  (TList Local (TProd  TInt TInt)) TInt)\n\
+      \                                                                      (tcase (tread_at_key (tsnd (tvar 0))\n\
+      \                                                                                           (tfst (tvar 0))) (tset_at_key (tsnd (tvar 1))\n\
+      \                                                                                                                         (tint 1)\n\
+      \                                                                                                                         (tfst (tvar 1))) (tset_at_key (tsnd (tvar 1))\n\
+      \                                                                                                                                                       (tint_binop Add (tvar 0) (tint 1))\n\
+      \                                                                                                                                                       (tfst (tvar 1)))))\n\
+      \                                                                (tfst (tvar 1))\n\
+      \                                                                (tvar 0)))\n\
+      \                                                   (tapp (tvar 3)\n\
+      \                                                         (tsnd (tvar 0)))))\n\
+      \                                       (tvar 0)\n\
+      \                                       (tvar 1)))\n\
       \                          (tlist []))))\n\
       \        splitWords).\n\
       \Lemma example_typing :\n\
