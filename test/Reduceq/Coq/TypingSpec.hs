@@ -12,10 +12,10 @@ import Reduceq.Imp.Parser
 
 import Reduceq.Spec.Util
 
-mkVar :: Word -> Expr VarId
+mkVar :: Word -> Expr
 mkVar = Var . VarId
 
-typeInferenceTests :: [(Expr VarId, Either InferError Ty)]
+typeInferenceTests :: [(Expr, Either InferError Ty)]
 typeInferenceTests =
   [ (IntLit 1, Right TyInt)
   , (Abs TyInt (mkVar 0), Right (TyFun TyInt TyInt))
@@ -38,7 +38,7 @@ typeInferenceTests =
     , Right (TyFun (TyArr TyInt) TyInt))
   ]
 
-testTypeInference :: Expr VarId -> Either InferError Ty -> Expectation
+testTypeInference :: Expr -> Either InferError Ty -> Expectation
 testTypeInference expr expectedTy =
   runInferM (inferType expr) `shouldBe` expectedTy
 

@@ -63,7 +63,7 @@ argsParser =
       ProveSingleOptions <$> strArgument (metavar "FILE") <*>
       optional (strOption (short 'o' <> metavar "FILE"))
 
-withTypedReducedInputFile :: FilePath -> (Expr VarId -> Ty -> IO ()) -> IO ()
+withTypedReducedInputFile :: FilePath -> (Expr -> Ty -> IO ()) -> IO ()
 withTypedReducedInputFile path cont = do
   input <- readFile path
   case parseText fileParser mempty input of

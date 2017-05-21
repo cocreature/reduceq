@@ -45,7 +45,7 @@ pprintComp comp =
     ILt -> "Lt"
     IGt -> "Gt"
 
-pprintExpr :: Expr VarId -> Doc a
+pprintExpr :: Expr -> Doc a
 pprintExpr (Var id) = pprintVar id
 pprintExpr (ExternRef (ExternReference name _)) = pretty name
 pprintExpr (IntLit i) =
@@ -107,7 +107,7 @@ forallExtern externRefs doc
   where
     refParams = hsep (map (pretty . refName) externRefs)
 
-pprintTypingLemma :: Text -> Expr VarId -> Ty -> Doc a
+pprintTypingLemma :: Text -> Expr -> Ty -> Doc a
 pprintTypingLemma name expr ty = vsep [lemmaIntro, indent 2 body, proof]
   where
     lemmaIntro = "Lemma" <+> pretty name <> "_typing" <+> ":"
@@ -125,14 +125,14 @@ hsep' docs
   | null docs = mempty
   | otherwise = space <> hsep docs
 
-pprintExprDefinition :: Text -> Expr VarId -> Doc a
+pprintExprDefinition :: Text -> Expr -> Doc a
 pprintExprDefinition name expr =
   "Definition" <+> pretty name <> parameters <+> ":=" <+> pprintExpr expr <> "."
   where
     externRefs = collectExternReferences expr
     parameters = hsep' (map (pretty . refName) externRefs)
 
-pprintExample :: Expr VarId -> Ty -> Doc a
+pprintExample :: Expr -> Ty -> Doc a
 pprintExample expr ty =
   vsep
     [ "Require Import Term Typing."
@@ -168,8 +168,7 @@ strictUnion = Map.mergeA Map.preserveMissing Map.preserveMissing whenMatched
              then Right v
              else Left (MatchError k v v'))
 
-pprintEquivalence ::
-     Text -> Expr VarId -> Expr VarId -> Either PprintError (Doc a)
+pprintEquivalence :: Text -> Expr -> Expr -> Either PprintError (Doc a)
 pprintEquivalence name imperative mapreduce = do
   externRefs <-
     bimap
@@ -192,7 +191,7 @@ pprintEquivalence name imperative mapreduce = do
   where
     imperativeRefs = refMap imperative
     mapreduceRefs = refMap mapreduce
-    pprintStep :: Text -> Expr VarId -> Text -> Doc a
+    pprintStep :: Text -> Expr -> Text -> Doc a
     pprintStep name' expr to' =
       "bigstep" <+>
       parens
@@ -203,8 +202,7 @@ pprintEquivalence name imperative mapreduce = do
       Map.fromList .
       map (\(ExternReference n t) -> (n, t)) . collectExternReferences
 
-pprintProofObligation ::
-     (Expr VarId, Ty) -> (Expr VarId, Ty) -> Either PprintError (Doc a)
+pprintProofObligation :: (Expr, Ty) -> (Expr, Ty) -> Either PprintError (Doc a)
 pprintProofObligation (imperative, imperativeTy) (mapreduce, mapreduceTy) = do
   equivalence <- pprintEquivalence "equivalence" imperative mapreduce
   pure

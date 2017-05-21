@@ -18,7 +18,7 @@ import qualified Data.Set as Set
 import qualified Reduceq.Coq as Coq
 import qualified Reduceq.Imp as Imp
 
-type VarContext = Map Imp.VarId (Coq.Expr Coq.VarId, Imp.Ty)
+type VarContext = Map Imp.VarId (Coq.Expr, Imp.Ty)
 
 data TransformError
   = UnknownVariable Imp.VarId
@@ -48,17 +48,17 @@ newtype TransformM a =
            , MonadError TransformError
            )
 
-withBoundVar :: Imp.TypedVar -> TransformM (Coq.Expr Coq.VarId) -> TransformM (Coq.Expr Coq.VarId)
+withBoundVar :: Imp.TypedVar -> TransformM Coq.Expr -> TransformM Coq.Expr
 withBoundVar (Imp.TypedVar name ty) =
   local
     (Map.insert name (Coq.Var $ Coq.VarId 0, ty) .
      Map.map (first Coq.shiftVars)) .
   fmap (Coq.Abs (transformTy ty))
 
-withAnonBoundVar :: Coq.Ty -> TransformM (Coq.Expr Coq.VarId) -> TransformM (Coq.Expr Coq.VarId)
+withAnonBoundVar :: Coq.Ty -> TransformM Coq.Expr -> TransformM Coq.Expr
 withAnonBoundVar ty = local (Map.map (first Coq.shiftVars)) . fmap (Coq.Abs ty)
 
-withBoundVarProd :: (Imp.TypedVar, Imp.TypedVar) -> TransformM (Coq.Expr Coq.VarId) -> TransformM (Coq.Expr Coq.VarId)
+withBoundVarProd :: (Imp.TypedVar, Imp.TypedVar) -> TransformM Coq.Expr -> TransformM Coq.Expr
 withBoundVarProd (Imp.TypedVar fstName fstTy, Imp.TypedVar sndName sndTy) =
   assert (fstName /= sndName) $
   local
@@ -66,7 +66,7 @@ withBoundVarProd (Imp.TypedVar fstName fstTy, Imp.TypedVar sndName sndTy) =
      Map.insert sndName (Coq.Snd (Coq.Var (Coq.VarId 0)), sndTy)) .
   fmap (Coq.Abs (Coq.TyProd (transformTy fstTy) (transformTy sndTy)))
 
-varRef :: Imp.VarId -> TransformM (Coq.Expr Coq.VarId)
+varRef :: Imp.VarId -> TransformM Coq.Expr
 varRef id = do
   expr <- asks (Map.lookup id)
   case expr of
@@ -76,7 +76,7 @@ varRef id = do
 runTransformM :: TransformM a -> Either TransformError a
 runTransformM (TransformM a) = runReader (runExceptT a) Map.empty
 
-transformDecl :: Imp.FunDecl -> TransformM (Coq.Expr Coq.VarId)
+transformDecl :: Imp.FunDecl -> TransformM Coq.Expr
 transformDecl (Imp.FunctionDeclaration (Imp.VarId name) args retTy body) =
   case body of
     Imp.ExternFunction
@@ -92,7 +92,7 @@ transformDecl (Imp.FunctionDeclaration (Imp.VarId name) args retTy body) =
   where
     coqTy = transformTy (Imp.TyFun (map Imp.varType args) retTy)
 
-transformDecls :: NonEmpty Imp.FunDecl -> TransformM (Coq.Expr Coq.VarId)
+transformDecls :: NonEmpty Imp.FunDecl -> TransformM Coq.Expr
 transformDecls decls
  -- declarations can only reference earlier declarations
  =
@@ -146,7 +146,7 @@ tupleType vars =
     [ty] -> transformTy ty
     tys -> foldr1 Coq.TyProd (map transformTy tys)
 
-varsAsTuple :: [Imp.TypedVar] -> TransformM (Coq.Expr Coq.VarId)
+varsAsTuple :: [Imp.TypedVar] -> TransformM Coq.Expr
 varsAsTuple vars =
   case map Imp.varName vars of
     [] -> pure Coq.Unit
@@ -154,13 +154,13 @@ varsAsTuple vars =
     vars' -> foldr1 Coq.Pair <$> (mapM varRef vars')
 
 withVarsAsTuple :: [Imp.TypedVar]
-                -> TransformM (Coq.Expr Coq.VarId)
-                -> TransformM (Coq.Expr Coq.VarId)
+                -> TransformM Coq.Expr
+                -> TransformM Coq.Expr
 withVarsAsTuple vars =
   local (Map.union (refAsTuple vars) . Map.map (first Coq.shiftVars)) .
   fmap (Coq.Abs (tupleType (map Imp.varType vars)))
 
-transformStmts :: [Imp.Stmt] -> TransformM (Coq.Expr Coq.VarId)
+transformStmts :: [Imp.Stmt] -> TransformM Coq.Expr
 transformStmts [] = throwError MissingReturnStmt
 transformStmts (Imp.Return e:_) = transformExpr e
 transformStmts (Imp.Assgn loc val:stmts) = do
@@ -190,7 +190,7 @@ transformStmts (Imp.While cond body:stmts) = do
   stmts' <- withVarsAsTuple assignments (transformStmts stmts)
   pure (Coq.App stmts' (Coq.Iter coqBody coqInit))
 
-transformExpr :: Imp.Expr -> TransformM (Coq.Expr Coq.VarId)
+transformExpr :: Imp.Expr -> TransformM Coq.Expr
 transformExpr (Imp.VarRef id) = varRef id
 transformExpr (Imp.IntLit i) = pure (Coq.IntLit i)
 transformExpr (Imp.IntBinop op arg1 arg2) =

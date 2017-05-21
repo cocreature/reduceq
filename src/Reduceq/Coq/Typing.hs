@@ -32,7 +32,7 @@ runInferM (InferM x) = runReader (runExceptT x) Map.empty
 data InferError
   = TypeMismatch Ty
                  Ty
-  | ErrorIn (Expr VarId)
+  | ErrorIn Expr
             InferError
   | UnboundVariable VarId
   | AmbigousType Text
@@ -69,7 +69,7 @@ shiftVarMap = Map.mapKeys succ
 withBoundVar :: Ty -> InferM a -> InferM a
 withBoundVar ty = local (Map.insert (VarId 0) ty . shiftVarMap)
 
-guardTyEqualIn :: Expr VarId -> Ty -> Ty -> InferM Ty
+guardTyEqualIn :: Expr -> Ty -> Ty -> InferM Ty
 guardTyEqualIn e ty1 ty2 =
   if ty1 == ty2
     then pure ty1
@@ -88,7 +88,7 @@ varTy id = do
     Nothing -> throwError (UnboundVariable id)
     Just ty' -> pure ty'
 
-checkType :: Expr VarId -> Ty -> InferM Ty
+checkType :: Expr -> Ty -> InferM Ty
 checkType (Var id) ty = do
   ty' <- varTy id
   guardTyEqualIn (Var id) ty ty'
@@ -189,7 +189,7 @@ checkType e ty = do
   tyE <- inferType e
   guardTyEqualIn e tyE ty
 
-inferType :: Expr VarId -> InferM Ty
+inferType :: Expr -> InferM Ty
 inferType (Var id) = varTy id
 inferType (ExternRef (ExternReference _ ty)) = pure ty
 inferType (IntLit _) = pure TyInt

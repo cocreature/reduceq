@@ -20,7 +20,7 @@ import           Reduceq.Transform
 parseError :: ErrInfo -> Expectation
 parseError = expectationFailure . toS . renderParseError
 
-withTransformed :: NonEmpty Imp.FunDecl -> (Coq.Expr Coq.VarId -> Expectation) -> Expectation
+withTransformed :: NonEmpty Imp.FunDecl -> (Coq.Expr -> Expectation) -> Expectation
 withTransformed decls cont =
   case runTransformM (transformDecls decls) of
     Left err -> expectationFailure (toS (showTransformError err))
@@ -32,13 +32,13 @@ withParseResult parser input cont =
     Success result -> cont result
     Failure errInfo -> parseError errInfo
 
-withType :: Coq.Expr Coq.VarId -> (Coq.Ty -> Expectation) -> Expectation
+withType :: Coq.Expr -> (Coq.Ty -> Expectation) -> Expectation
 withType expr cont =
   case runInferM (inferType expr) of
     Left err -> (expectationFailure . toS . Coq.displayCompact . showInferError) err
     Right ty -> cont ty
 
-withTypedReduced :: Text -> (Coq.Expr Coq.VarId  -> Coq.Ty -> Expectation) -> Expectation
+withTypedReduced :: Text -> (Coq.Expr  -> Coq.Ty -> Expectation) -> Expectation
 withTypedReduced input cont =
   withParseResult fileParser input $ \decls ->
     withTransformed decls $ \transformed ->

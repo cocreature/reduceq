@@ -43,67 +43,67 @@ data ExternReference = ExternReference
   , refType :: !Ty
   } deriving (Show, Eq, Ord, Data, Typeable)
 
-data Expr a
-  = Var a
+data Expr
+  = Var VarId
   | ExternRef !ExternReference
   | IntLit !Integer
-  | App (Expr a)
-        (Expr a)
+  | App Expr
+        Expr
   | Abs Ty
-        (Expr a)
-  | Fst (Expr a)
-  | Snd (Expr a)
-  | Pair (Expr a)
-         (Expr a)
-  | Inl (Expr a)
-  | Inr (Expr a)
-  | Case (Expr a)
-         (Expr a)
-         (Expr a)
-  | If (Expr a)
-       (Expr a)
-       (Expr a)
+        Expr
+  | Fst Expr
+  | Snd Expr
+  | Pair Expr
+         Expr
+  | Inl Expr
+  | Inr Expr
+  | Case Expr
+         Expr
+         Expr
+  | If Expr
+       Expr
+       Expr
   | IntBinop IntBinop
-             (Expr a)
-             (Expr a)
+             Expr
+             Expr
   | IntComp IntComp
-            (Expr a)
-            (Expr a)
-  | Iter (Expr a)
-         (Expr a) -- The first argument is a function representing
+            Expr
+            Expr
+  | Iter Expr
+         Expr -- The first argument is a function representing
                    -- the loop body and the second argument is the
                    -- initial value
-  | Set (Expr a)
-        (Expr a)
-        (Expr a) -- Set array index val
-  | SetAtKey (Expr a)
-             (Expr a)
-             (Expr a) -- Set map key val
-  | Read (Expr a)
-         (Expr a) -- Read array index
-  | ReadAtKey (Expr a)
-              (Expr a) -- Read map val
+  | Set Expr
+        Expr
+        Expr -- Set array index val
+  | SetAtKey Expr
+             Expr
+             Expr -- Set map key val
+  | Read Expr
+         Expr -- Read array index
+  | ReadAtKey Expr
+              Expr -- Read map val
   | Unit
-  | Annotated (Expr a)
+  | Annotated Expr
               Ty -- explicit type annotations
-  | Map (Expr a)
-        (Expr a)
-  | Group (Expr a)
-  | Fold (Expr a)
-         (Expr a)
-         (Expr a)
-  | Concat (Expr a)
+  | Map Expr
+        Expr
+  | Group Expr
+  | Fold Expr
+         Expr
+         Expr
+  | Concat Expr
   deriving (Show, Eq, Ord, Data, Typeable)
 
 makePrisms ''Expr
 
-collectExternReferences :: Data a => Expr a -> [ExternReference]
+collectExternReferences :: Expr -> [ExternReference]
 collectExternReferences e = e ^.. cosmos . _ExternRef
 
-instance Data a => Plated (Expr a)
+instance Plated Expr
 
 -- | Increment free DeBruijn indices greater or equal than m by n
-liftVarsAbove :: Word -> Word -> Expr VarId -> Expr VarId
+liftVarsAbove :: Word -> Word -> Expr -> Expr
 liftVarsAbove m n expr = go expr
   where
     go (Var (VarId index))
@@ -114,10 +114,10 @@ liftVarsAbove m n expr = go expr
       Case (go c) (liftVarsAbove (succ m) n x) (liftVarsAbove (succ m) n y)
     go e = e & plate %~ go
 
-shiftVars :: Expr VarId -> Expr VarId
+shiftVars :: Expr -> Expr
 shiftVars = liftVarsAbove 0 1
 
-substAt :: VarId -> Expr VarId -> Expr VarId -> Expr VarId
+substAt :: VarId -> Expr -> Expr -> Expr
 substAt id substitute expr = go expr
   where
     go (Var id')
@@ -132,7 +132,7 @@ substAt id substitute expr = go expr
         (substAt (succ id) substitute y)
     go e = e & plate %~ go
 
-betaReduce :: Expr VarId -> Expr VarId
+betaReduce :: Expr -> Expr
 betaReduce =
   transform $ \e ->
     case e of

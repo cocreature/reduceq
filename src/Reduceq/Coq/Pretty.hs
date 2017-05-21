@@ -72,7 +72,7 @@ pprintComp IEq = "="
 pprintComp ILt = "<"
 pprintComp IGt = ">"
 
-pprintExpr :: Expr VarId -> PprintM (Doc AnsiTerminal)
+pprintExpr :: Expr -> PprintM (Doc AnsiTerminal)
 pprintExpr (Var id) = coloredVar id
 pprintExpr (IntLit i)
   | i >= 0 = pure (pretty i)
