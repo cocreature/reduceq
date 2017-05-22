@@ -40,4 +40,4 @@ testProofSpec imperativeInp mapreduceInp output =
               (imperative, imperativeTy)
               (mapreduce, mapreduceTy)) of
         Left err -> (expectationFailure . toS . showPprintError) err
-        Right doc -> displayCompact doc `shouldBe` output
+        Right doc -> displayDoc doc `shouldBe` output

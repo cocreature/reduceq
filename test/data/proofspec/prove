@@ -9,8 +9,10 @@ fn f(x : Int) -> Int {
 }
 ===
 Require Import Step Term Typing.
-Definition imperative g := (tapp (tabs (TArrow TInt TInt) (tabs TInt (tapp (tvar 1) (tvar 0)))) g).
-Definition mapreduce g := (tapp (tabs (TArrow TInt TInt) (tabs TInt (tapp (tvar 1) (tvar 0)))) g).
+Definition imperative g :=
+  (tapp (tabs (TArrow TInt TInt) (tabs TInt (tapp (tvar 1) (tvar 0)))) g).
+Definition mapreduce g :=
+  (tapp (tabs (TArrow TInt TInt) (tabs TInt (tapp (tvar 1) (tvar 0)))) g).
 Lemma imperative_typing :
   forall g, empty_ctx |-- g \in (TArrow TInt TInt) ->
        empty_ctx |-- imperative g \in (TArrow TInt TInt).
@@ -21,7 +23,8 @@ Lemma mapreduce_typing :
 Proof. unfold mapreduce. repeat econstructor; eauto. Qed.
 Lemma equivalence :
   forall g, empty_ctx |-- g \in (TArrow TInt TInt) ->
-       forall final,
-         bigstep (imperative g) final ->
-         bigstep (mapreduce g) final.
+       forall arg1 final,
+         empty_ctx |-- arg1 \in TInt ->
+         (bigstep (tapp (imperative g) arg1) final) ->
+         (bigstep (tapp (mapreduce g) arg1) final).
 Admitted.

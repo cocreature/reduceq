@@ -13,7 +13,6 @@ module Reduceq.Spec.Util
 import           Reduceq.Prelude
 
 import           Control.Lens
-import qualified Data.List as List
 import qualified Data.List.Split as List
 import qualified Data.Text as Text
 import           Pipes

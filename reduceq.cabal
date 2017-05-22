@@ -40,7 +40,8 @@ library
                      , wl-pprint
                      , wl-pprint-ansi
   default-language:    Haskell2010
-  default-extensions:  DeriveDataTypeable
+  default-extensions:  BangPatterns
+                     , DeriveDataTypeable
                      , DeriveFunctor
                      , GeneralizedNewtypeDeriving
                      , NamedFieldPuns

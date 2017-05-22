@@ -143,16 +143,21 @@ pprintExprDefinition name expr =
     externRefs = collectExternReferences expr
     parameters = hsep' (map (pretty . refName) externRefs)
 
+coqImports :: [Doc a]
+coqImports =
+  [ "Require Import Coq.Lists.List."
+  , "Import ListNotations."
+  , "Require Import Term Typing Step."
+  ]
+
 pprintExample :: Expr -> Ty -> Doc a
 pprintExample expr ty =
   vsep
-    [ "Require Import Coq.Lists.List."
-    , "Import ListNotations."
-    , "Require Import Term Typing."
-    , pprintExprDefinition "example" expr
-    , pprintTypingLemma "example" expr ty
-    , mempty
-    ]
+    (coqImports ++
+     [ pprintExprDefinition "example" expr
+     , pprintTypingLemma "example" expr ty
+     , mempty
+     ])
 
 data MatchError k v =
   MatchError k
@@ -160,8 +165,10 @@ data MatchError k v =
              v
   deriving (Show, Eq, Ord)
 
-data PprintError =
-  DifferentExternalRefTys !(MatchError Text Ty)
+data PprintError
+  = DifferentExternalRefTys !(MatchError Text Ty)
+  | PprintTypeMismatch !Ty
+                       !Ty
 
 showPprintError :: PprintError -> Text
 showPprintError (DifferentExternalRefTys (MatchError name ty ty')) =
@@ -169,6 +176,11 @@ showPprintError (DifferentExternalRefTys (MatchError name ty ty')) =
   "\" is different in the two programs: " <>
   show ty <>
   "≠" <>
+  show ty'
+showPprintError (PprintTypeMismatch ty ty') =
+  "The programs cannot be proven equivalent because their types do not match" <>
+  show ty <>
+  " " <>
   show ty'
 
 strictUnion :: (Ord k, Eq v) => Map k v -> Map k v -> Either (MatchError k v) (Map k v)
@@ -181,8 +193,10 @@ strictUnion = Map.mergeA Map.preserveMissing Map.preserveMissing whenMatched
              then Right v
              else Left (MatchError k v v'))
 
-pprintEquivalence :: Text -> Expr -> Expr -> Either PprintError (Doc a)
-pprintEquivalence name imperative mapreduce = do
+pprintEquivalence :: Text -> (Expr, Ty) -> (Expr, Ty) -> Either PprintError (Doc a)
+pprintEquivalence _ (_, ty) (_, ty')
+  | ty /= ty' = Left (PprintTypeMismatch ty ty')
+pprintEquivalence name (imperative, ty) (mapreduce, _) = do
   externRefs <-
     bimap
       DifferentExternalRefTys
@@ -190,15 +204,12 @@ pprintEquivalence name imperative mapreduce = do
       (strictUnion imperativeRefs mapreduceRefs)
   let assumptions = map pprintExternRefTyAssm externRefs
       equivalence =
-        vsep
-          [ coqForall <+> "final,"
-          , indent
-              2
-              (vsep
-                 [ pprintStep "imperative" imperative "final" <+> "->"
-                 , pprintStep "mapreduce" mapreduce "final" <> "."
-                 ])
-          ]
+        (hang 2 . sep)
+          ((coqForall <+> hsep argNames <+> "final,") :
+           argTyAssumptions ++
+           [ pprintStep "imperative" imperative "final" <+> "->"
+           , pprintStep "mapreduce" mapreduce "final" <> "."
+           ])
       body = forallExtern externRefs (vsep (assumptions ++ [equivalence]))
   Right (vsep ["Lemma" <+> pretty name <+> colon, indent 2 body, "Admitted."])
   where
@@ -206,25 +217,50 @@ pprintEquivalence name imperative mapreduce = do
     mapreduceRefs = refMap mapreduce
     pprintStep :: Text -> Expr -> Text -> Doc a
     pprintStep name' expr to' =
-      "bigstep" <+>
-      parens
-        (pretty name' <>
-         hsep' (map (pretty . refName) (collectExternReferences expr))) <+>
-      pretty to'
+      pprintApp
+        "bigstep"
+        [ pprintApp
+            "tapp"
+            [ pprintApp
+                (pretty name')
+                (map (pretty . refName) (collectExternReferences expr))
+            , hsep argNames
+            ]
+        , pretty to'
+        ]
+    argTyAssumptions :: [Doc a]
+    argTyAssumptions =
+      zipWith
+        (\ty' i -> pprintTypingJudgement ("arg" <> show i) [] ty' <+> "->")
+        argTys
+        [1 :: Int ..]
+    argTys :: [Ty]
+    argTys =
+      let argTys' (TyFun dom cod) = dom : argTys' cod
+          argTys' _ = []
+      in argTys' ty
+    argNames :: [Doc a]
+    argNames = map (\i -> "arg" <> pretty i) [1 .. numArgs]
+    numArgs :: Int
+    numArgs = length argTys
     refMap =
       Map.fromList .
       map (\(ExternReference n t) -> (n, t)) . collectExternReferences
 
 pprintProofObligation :: (Expr, Ty) -> (Expr, Ty) -> Either PprintError (Doc a)
 pprintProofObligation (imperative, imperativeTy) (mapreduce, mapreduceTy) = do
-  equivalence <- pprintEquivalence "equivalence" imperative mapreduce
+  equivalence <-
+    pprintEquivalence
+      "equivalence"
+      (imperative, imperativeTy)
+      (mapreduce, mapreduceTy)
   pure
     (vsep
-       [ "Require Import Step Term Typing."
-       , pprintExprDefinition "imperative" imperative
-       , pprintExprDefinition "mapreduce" mapreduce
-       , pprintTypingLemma "imperative" imperative imperativeTy
-       , pprintTypingLemma "mapreduce" mapreduce mapreduceTy
-       , equivalence
-       , mempty
-       ])
+       (coqImports ++
+        [ pprintExprDefinition "imperative" imperative
+        , pprintExprDefinition "mapreduce" mapreduce
+        , pprintTypingLemma "imperative" imperative imperativeTy
+        , pprintTypingLemma "mapreduce" mapreduce mapreduceTy
+        , equivalence
+        , mempty
+        ]))
