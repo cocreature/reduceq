@@ -14,6 +14,7 @@ import           Reduceq.Prelude
 
 import           Control.Lens
 import qualified Data.List as List
+import qualified Data.List.Split as List
 import qualified Data.Text as Text
 import           Pipes
 import           Pipes.Group
@@ -82,20 +83,20 @@ wordsBy isWordSep k p0 = fmap concats (k (wordsBy' p0))
                 (yield a >>
                  fmap (>-> Pipes.drop 1) (p' ^. Pipes.span (not . isWordSep)))
 
-splitTest :: Monad m => Producer Text m r -> Producer (Text, Text) m r
+splitTest :: Monad m => Producer Text m r -> Producer [Text] m r
 splitTest p = do
   (lines, r) <- lift (Pipes.toListM' p)
-  let (testA, testB) = List.span (/= "===") lines
-  yield (Text.unlines testA, Text.unlines (drop 1 testB))
+  yield (map Text.unlines (List.wordsBy (== "===") lines))
   pure r
 
-groupTests :: (Monad m) => Producer Text m () -> Producer (Text, Text) m ()
+groupTests :: (Monad m) => Producer Text m () -> Producer [Text] m ()
 groupTests = over (wordsBy (== "---") . individually) splitTest
 
-withTestsFromFile :: FilePath -> (Int -> Text) -> (Text -> Text -> Expectation) -> Spec
+withTestsFromFile :: FilePath -> (Int -> Text) -> ([Text] -> Expectation) -> Spec
 withTestsFromFile path nameNthTest createTest = do
-  tests <- (runIO . runSafeT . Pipes.toListM . groupTests) (Pipes.readFileLn path)
+  tests <-
+    (runIO . runSafeT . Pipes.toListM . groupTests) (Pipes.readFileLn path)
   zipWithM_
-    (\test i -> it ((toS . nameNthTest) i) (uncurry createTest test))
+    (\test i -> it ((toS . nameNthTest) i) (createTest test))
     tests
     [1 ..]

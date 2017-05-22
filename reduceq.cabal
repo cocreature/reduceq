@@ -12,6 +12,7 @@ category:            Web
 build-type:          Simple
 extra-source-files:  README.md
                      test/data/proofspec/prove_single
+                     test/data/proofspec/prove
 cabal-version:       >=1.10
 
 library
@@ -80,6 +81,7 @@ test-suite reduceq-test
                      , pipes-parse
                      , pipes-text
                      , reduceq
+                     , split
                      , text
   ghc-options:         -Wall -threaded -rtsopts -with-rtsopts=-N
   default-language:    Haskell2010

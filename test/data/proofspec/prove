@@ -1,0 +1,27 @@
+extern fn g(x : Int) -> Int {}
+fn f(x : Int) -> Int {
+  return g(x);
+}
+===
+extern fn g(x : Int) -> Int {}
+fn f(x : Int) -> Int {
+  return g(x);
+}
+===
+Require Import Step Term Typing.
+Definition imperative g := (tapp (tabs (TArrow TInt TInt) (tabs TInt (tapp (tvar 1) (tvar 0)))) g).
+Definition mapreduce g := (tapp (tabs (TArrow TInt TInt) (tabs TInt (tapp (tvar 1) (tvar 0)))) g).
+Lemma imperative_typing :
+  forall g, empty_ctx |-- g \in (TArrow TInt TInt) ->
+       empty_ctx |-- imperative g \in (TArrow TInt TInt).
+Proof. unfold imperative. repeat econstructor; eauto. Qed.
+Lemma mapreduce_typing :
+  forall g, empty_ctx |-- g \in (TArrow TInt TInt) ->
+       empty_ctx |-- mapreduce g \in (TArrow TInt TInt).
+Proof. unfold mapreduce. repeat econstructor; eauto. Qed.
+Lemma equivalence :
+  forall g, empty_ctx |-- g \in (TArrow TInt TInt) ->
+       forall final,
+         bigstep (imperative g) final ->
+         bigstep (mapreduce g) final.
+Admitted.
