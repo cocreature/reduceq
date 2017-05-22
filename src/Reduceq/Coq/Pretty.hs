@@ -154,7 +154,7 @@ pprintExpr (List xs) =
 displayDoc :: Doc a -> Text
 displayDoc =
   renderStrict .
-  layoutPretty (LayoutOptions (AvailablePerLine 80 0.8)) . unAnnotate
+  layoutPretty (LayoutOptions (AvailablePerLine 100 0.8)) . unAnnotate
 
 displayCompact :: Doc a -> Text
 displayCompact =
