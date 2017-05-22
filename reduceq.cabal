@@ -11,6 +11,7 @@ copyright:           (C) 2016 Moritz Kiefer
 category:            Web
 build-type:          Simple
 extra-source-files:  README.md
+                     test/data/proofspec/prove_single
 cabal-version:       >=1.10
 
 library
@@ -74,7 +75,12 @@ test-suite reduceq-test
   build-depends:       base
                      , hspec
                      , lens
+                     , pipes
+                     , pipes-group
+                     , pipes-parse
+                     , pipes-text
                      , reduceq
+                     , text
   ghc-options:         -Wall -threaded -rtsopts -with-rtsopts=-N
   default-language:    Haskell2010
   default-extensions:  NoImplicitPrelude, OverloadedStrings, TypeApplications

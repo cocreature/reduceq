@@ -1,3 +1,5 @@
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Reduceq.Spec.Util
   ( withParseResult
   , withTransformed
@@ -5,10 +7,20 @@ module Reduceq.Spec.Util
   , withTypedReduced
   , expectParseResult
   , parseError
+  , withTestsFromFile
   ) where
 
 import           Reduceq.Prelude
 
+import           Control.Lens
+import qualified Data.List as List
+import qualified Data.Text as Text
+import           Pipes
+import           Pipes.Group
+import qualified Pipes.Parse as Pipes
+import qualified Pipes.Prelude as Pipes
+import qualified Pipes.Prelude.Text as Pipes
+import           Pipes.Text.IO
 import           Test.Hspec
 
 import qualified Reduceq.Coq as Coq
@@ -48,3 +60,42 @@ withTypedReduced input cont =
 expectParseResult :: (Show a, Eq a) => Parser a -> Text -> a -> Expectation
 expectParseResult parser input result =
   withParseResult parser input (`shouldBe` result)
+
+-- TODO make a PR to pipes-group for this function
+wordsBy ::
+     forall m a' a x. Monad m
+  => (a' -> Bool)
+  -> Lens (Producer a' m x) (Producer a m x) (FreeT (Producer a' m) m x) (FreeT (Producer a m) m x)
+wordsBy isWordSep k p0 = fmap concats (k (wordsBy' p0))
+  where
+    wordsBy' :: Monad m => Producer a' m r -> FreeT (Producer a' m) m r
+    wordsBy' p =
+      FreeT $ do
+        x <- next p
+        return $
+          case x of
+            Left r -> Pure r
+            Right (a, p') ->
+              Free $
+              fmap
+                wordsBy'
+                (yield a >>
+                 fmap (>-> Pipes.drop 1) (p' ^. Pipes.span (not . isWordSep)))
+
+splitTest :: Monad m => Producer Text m r -> Producer (Text, Text) m r
+splitTest p = do
+  (lines, r) <- lift (Pipes.toListM' p)
+  let (testA, testB) = List.span (/= "===") lines
+  yield (Text.unlines testA, Text.unlines (drop 1 testB))
+  pure r
+
+groupTests :: (Monad m) => Producer Text m () -> Producer (Text, Text) m ()
+groupTests = over (wordsBy (== "---") . individually) splitTest
+
+withTestsFromFile :: FilePath -> (Int -> Text) -> (Text -> Text -> Expectation) -> Spec
+withTestsFromFile path nameNthTest createTest = do
+  tests <- (runIO . runSafeT . Pipes.toListM . groupTests) (Pipes.readFileLn path)
+  zipWithM_
+    (\test i -> it ((toS . nameNthTest) i) (uncurry createTest test))
+    tests
+    [1 ..]
