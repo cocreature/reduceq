@@ -1,0 +1,14 @@
+extern fn splitWords(doc : Int) -> [Int] {}
+fn wordcount(docs : [Int]) -> [Int * Int] {
+  map : [Int * Int] = [];
+  for ((doc : Int) : docs) {
+    words : [Int] = splitWords(doc);
+    for ((word : Int) : words) {
+      match map{word} with
+      | l : () => { map{word} := 1; }
+      | r : Int => { map{word} := r + 1; }
+      end
+    }
+  }
+  return map;
+}

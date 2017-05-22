@@ -1,0 +1,6 @@
+extern fn splitWords(doc : Int) -> [Int] {}
+fn wordcount(docs : [Int]) -> [Int * Int] {
+  words : [Int] = flatMap((doc : Int) => splitWords(doc), docs);
+  wordTuples : [Int * Int] = map ((x : Int) => (x, 1), words);
+  return reduceByKey((x : Int) (y : Int) => x + y, 0, wordTuples);
+}
