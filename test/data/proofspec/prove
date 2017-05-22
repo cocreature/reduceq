@@ -8,7 +8,9 @@ fn f(x : Int) -> Int {
   return g(x);
 }
 ===
-Require Import Step Term Typing.
+Require Import Coq.Lists.List.
+Import ListNotations.
+Require Import Term Typing Step.
 Definition imperative g :=
   (tapp (tabs (TArrow TInt TInt) (tabs TInt (tapp (tvar 1) (tvar 0)))) g).
 Definition mapreduce g :=
