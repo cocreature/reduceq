@@ -1,4 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE ViewPatterns #-}
 module Reduceq.Coq.AST
   ( Expr(..)
   , ExternReference(..)
@@ -16,7 +17,7 @@ import Reduceq.Prelude
 
 import Reduceq.Imp (IntBinop(..), IntComp(..))
 
-import Control.Lens hiding ((&), index, op)
+import Control.Lens hiding ((&), index, op, List)
 import Data.Data
 
 -- | DeBruijn indices
@@ -133,14 +134,19 @@ substAt id substitute expr = go expr
         (substAt (succ id) substitute y)
     go e = over plate go e
 
+unannotate :: Expr -> Expr
+unannotate = transform $ \e ->
+  case e of
+    Annotated e' _ -> e'
+    _ -> e
+
 betaReduce :: Expr -> Expr
 betaReduce =
   transform $ \e ->
     case e of
-      -- TODO Find a more robust solution for working0with Annotated
-      (App (Abs _ body) lit@(IntLit _)) -> substAt (VarId 0) lit body
-      (App (Abs _ body) lit@(Annotated (IntLit _) TyInt)) ->
-        substAt (VarId 0) lit body
-      (App (Abs ty (Var (VarId 0))) arg) ->
-        Annotated arg ty
+      (App (Abs ty body) (unannotate -> lit@(IntLit _))) ->
+        substAt (VarId 0) lit body `Annotated` ty
+      (App (Abs ty body) (unannotate -> lit@(List _))) ->
+        substAt (VarId 0) lit body `Annotated` ty
+      (App (Abs ty (Var (VarId 0))) arg) -> arg `Annotated` ty
       _ -> e

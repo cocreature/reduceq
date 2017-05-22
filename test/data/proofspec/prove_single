@@ -93,31 +93,27 @@ Definition example splitWords :=
         (TArrow TInt (TList Local TInt))
         (tabs
            (TList Local TInt)
-           (tapp
+           (tfold
               (tabs
-                 (TList Local (TProd  TInt TInt))
-                 (tfold
+                 (TProd  (TList Local (TProd  TInt TInt)) TInt)
+                 (tapp
                     (tabs
-                       (TProd  (TList Local (TProd  TInt TInt)) TInt)
-                       (tapp
+                       (TList Local TInt)
+                       (tfold
                           (tabs
-                             (TList Local TInt)
-                             (tfold
-                                (tabs
-                                   (TProd  (TList Local (TProd  TInt TInt)) TInt)
-                                   (tcase
-                                      (tread_at_key (tsnd (tvar 0)) (tfst (tvar 0)))
-                                      (tset_at_key (tsnd (tvar 1)) (tint 1) (tfst (tvar 1)))
-                                      (tset_at_key
-                                         (tsnd (tvar 1))
-                                         (tint_binop Add (tvar 0) (tint 1))
-                                         (tfst (tvar 1)))))
-                                (tfst (tvar 1))
-                                (tvar 0)))
-                          (tapp (tvar 3) (tsnd (tvar 0)))))
-                    (tvar 0)
-                    (tvar 1)))
-              (tlist []))))
+                             (TProd  (TList Local (TProd  TInt TInt)) TInt)
+                             (tcase
+                                (tread_at_key (tsnd (tvar 0)) (tfst (tvar 0)))
+                                (tset_at_key (tsnd (tvar 1)) (tint 1) (tfst (tvar 1)))
+                                (tset_at_key
+                                   (tsnd (tvar 1))
+                                   (tint_binop Add (tvar 0) (tint 1))
+                                   (tfst (tvar 1)))))
+                          (tfst (tvar 1))
+                          (tvar 0)))
+                    (tapp (tvar 2) (tsnd (tvar 0)))))
+              (tlist [])
+              (tvar 0))))
      splitWords).
 Lemma example_typing :
   forall splitWords, empty_ctx |-- splitWords \in (TArrow TInt (TList Local TInt)) ->

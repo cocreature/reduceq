@@ -190,6 +190,16 @@ checkType (List xs) ty =
     TyArr tyEl ->
       ty <$ traverse_ (`checkType` tyEl) xs
     _ -> throwError (ExpectedArr ty)
+checkType (Fold f x xs) ty = do
+  _ <- checkType x ty
+  fTy <- inferType f
+  case fTy of
+    TyFun (TyProd tyAcc tyEl) tyAcc' -> do
+      _ <- guardTyEqual tyAcc tyAcc'
+      _ <- guardTyEqual tyAcc ty
+      _ <- checkType xs (TyArr tyEl)
+      pure tyAcc
+    _ -> throwError (ExpectedFunction fTy)
 checkType e ty = do
   tyE <- inferType e
   guardTyEqualIn e tyE ty

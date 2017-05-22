@@ -120,5 +120,5 @@ reducedTransformTests =
       \  }\
       \  return map;\
       \}"
-    , "(fun ▢ : [Int]. ((fun ▢ : [Int * Int]. (fold (fun ▢ : [Int * Int] * Int. (set_at_key (fst v0) (snd v0) 1)) v0 v1)) []))")
+    , "(fun ▢ : [Int]. (fold (fun ▢ : [Int * Int] * Int. (set_at_key (fst v0) (snd v0) 1)) [] v0))")
   ]
