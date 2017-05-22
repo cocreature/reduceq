@@ -46,7 +46,7 @@ pprintComp comp =
     IGt -> "Gt"
 
 pprintApp :: Doc a -> [Doc a] -> Doc a
-pprintApp f xs = parens (f <+> align (sep xs))
+pprintApp f xs = (parens . hang 2 . sep) (f : xs)
 
 pprintExpr :: Expr -> Doc a
 pprintExpr (Var id) = pprintVar id
@@ -60,13 +60,10 @@ pprintExpr (App f x) =
   pprintApp "tapp" [pprintExpr f, pprintExpr x]
 pprintExpr (Abs ty body) = pprintApp "tabs" [pprintTy ty, pprintExpr body]
 pprintExpr (Case x ifL ifR) =
-  (parens . hang 3 . Pretty.group)
-    ("tcase" <+> pprintExpr x <+> pprintExpr ifL <+> pprintExpr ifR)
+  pprintApp "tcase" [pprintExpr x, pprintExpr ifL, pprintExpr ifR]
 pprintExpr (Fst x) = parens ("tfst" <+> pprintExpr x)
 pprintExpr (Snd x) = parens ("tsnd" <+> pprintExpr x)
-pprintExpr (Pair x y) =
-  parens
-    ("tpair" <+> pprintExpr x <+> pprintExpr y)
+pprintExpr (Pair x y) = pprintApp "tpair" [pprintExpr x, pprintExpr y]
 pprintExpr (If cond ifTrue ifFalse) =
   (parens . hang 3 . Pretty.group)
     ("tif" <+> pprintExpr cond <+> pprintExpr ifTrue <+> pprintExpr ifFalse)
