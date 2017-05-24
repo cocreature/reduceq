@@ -147,8 +147,22 @@ coqImports :: [Doc a]
 coqImports =
   [ "Require Import Coq.Lists.List."
   , "Import ListNotations."
-  , "Require Import Term Typing Step."
+  , "Require Import" <+> localImports <> "."
   ]
+  where
+    localImports =
+      hsep
+        [ "Determinism"
+        , "Misc"
+        , "Notations"
+        , "Preservation"
+        , "Rules"
+        , "Step"
+        , "Substitutivity"
+        , "Term"
+        , "Typing"
+        , "Util"
+        ]
 
 pprintExample :: Expr -> Ty -> Doc a
 pprintExample expr ty =

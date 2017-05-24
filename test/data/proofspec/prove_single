@@ -4,7 +4,7 @@ fn f(x : Int) -> Int {
 ===
 Require Import Coq.Lists.List.
 Import ListNotations.
-Require Import Term Typing Step.
+Require Import Determinism Misc Notations Preservation Rules Step Substitutivity Term Typing Util.
 Definition example := (tabs TInt (tint_binop Add (tvar 0) (tint 1))).
 Lemma example_typing :
   empty_ctx |-- example \in (TArrow TInt TInt).
@@ -17,7 +17,7 @@ fn f(x : Int) -> Int {
 ===
 Require Import Coq.Lists.List.
 Import ListNotations.
-Require Import Term Typing Step.
+Require Import Determinism Misc Notations Preservation Rules Step Substitutivity Term Typing Util.
 Definition example g :=
   (tapp (tabs (TArrow TInt TInt) (tabs TInt (tapp (tvar 1) (tvar 0)))) g).
 Lemma example_typing :
@@ -34,7 +34,7 @@ fn wordcount(docs : [Int]) -> [Int * Int] {
 ===
 Require Import Coq.Lists.List.
 Import ListNotations.
-Require Import Term Typing Step.
+Require Import Determinism Misc Notations Preservation Rules Step Substitutivity Term Typing Util.
 Definition example splitWords :=
   (tapp
      (tabs
@@ -86,7 +86,7 @@ fn wordcount(docs : [Int]) -> [Int * Int] {
 ===
 Require Import Coq.Lists.List.
 Import ListNotations.
-Require Import Term Typing Step.
+Require Import Determinism Misc Notations Preservation Rules Step Substitutivity Term Typing Util.
 Definition example splitWords :=
   (tapp
      (tabs
