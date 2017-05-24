@@ -12,6 +12,7 @@ module Reduceq.Spec.Util
 
 import           Reduceq.Prelude
 
+import qualified Control.Foldl as Foldl
 import           Control.Lens
 import qualified Data.List.Split as List
 import qualified Data.Text as Text
@@ -82,14 +83,11 @@ wordsBy isWordSep k p0 = fmap concats (k (wordsBy' p0))
                 (yield a >>
                  fmap (>-> Pipes.drop 1) (p' ^. Pipes.span (not . isWordSep)))
 
-splitTest :: Monad m => Producer Text m r -> Producer [Text] m r
-splitTest p = do
-  (lines, r) <- lift (Pipes.toListM' p)
-  yield (map Text.unlines (List.wordsBy (== "===") lines))
-  pure r
+splitTest :: Foldl.Fold Text [Text]
+splitTest = fmap (map Text.unlines . List.wordsBy (== "===")) Foldl.list
 
 groupTests :: (Monad m) => Producer Text m () -> Producer [Text] m ()
-groupTests = over (wordsBy (== "---") . individually) splitTest
+groupTests p = Foldl.purely folds splitTest (p ^. wordsBy (== "---"))
 
 withTestsFromFile :: FilePath -> (Int -> Text) -> ([Text] -> Expectation) -> Spec
 withTestsFromFile path nameNthTest createTest = do

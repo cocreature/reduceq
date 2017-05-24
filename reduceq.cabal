@@ -75,6 +75,7 @@ test-suite reduceq-test
                        Reduceq.TransformSpec
                        Reduceq.Spec.Util
   build-depends:       base
+                     , foldl
                      , hspec
                      , lens
                      , pipes
