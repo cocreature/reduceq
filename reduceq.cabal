@@ -37,8 +37,8 @@ library
                      , text
                      , trifecta
                      , unordered-containers
-                     , wl-pprint
-                     , wl-pprint-ansi
+                     , prettyprinter
+                     , prettyprinter-ansi-terminal
   default-language:    Haskell2010
   default-extensions:  BangPatterns
                      , DeriveDataTypeable
@@ -58,7 +58,8 @@ executable reduceq-exe
                      , lens
                      , optparse-applicative
                      , reduceq
-                     , wl-pprint-ansi
+                     , prettyprinter
+                     , prettyprinter-ansi-terminal
   default-language:    Haskell2010
   default-extensions:  NamedFieldPuns
                      , NoImplicitPrelude

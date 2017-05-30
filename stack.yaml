@@ -1,15 +1,10 @@
-resolver: lts-8.12
+resolver: lts-8.15
 packages:
 - '.'
-- location:
-    git: https://github.com/quchen/prettyprinter.git
-    commit: c67f670c50588646aebbdab77aea415fefd897b5
-  subdirs:
-    - wl-pprint
-    - wl-pprint-ansi
-  extra-dep: true
 extra-deps:
 - containers-0.5.10.2
 - lens-4.15.2
+- prettyprinter-1
+- prettyprinter-ansi-terminal-1
 flags: {}
 extra-package-dbs: []
