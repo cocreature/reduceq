@@ -9,7 +9,7 @@ module Reduceq.Transform
 
 import           Reduceq.Prelude
 
-import           Control.Lens
+import           Control.Lens hiding (index, op)
 import qualified Data.List.NonEmpty as NonEmpty
 import           Data.Map (Map)
 import qualified Data.Map as Map
@@ -57,7 +57,7 @@ withAnonVar (Imp.TypedVar name ty) =
 -- | 'withBoundVar' behaves like 'withAnonVar' but also wraps the
 -- expression in a lambda that binds the variable
 withBoundVar :: Imp.TypedVar -> TransformM Coq.Expr -> TransformM Coq.Expr
-withBoundVar var@(Imp.TypedVar name ty) =
+withBoundVar var@(Imp.TypedVar _name ty) =
   withAnonVar var . fmap (Coq.Abs (transformTy ty))
 
 withAnonBoundVar :: Coq.Ty -> TransformM Coq.Expr -> TransformM Coq.Expr
@@ -251,9 +251,9 @@ transformExpr (Imp.Call (Imp.VarRef "reduceByKey") args) =
       case reducer of
         Imp.Lambda [varA@(Imp.TypedVar _ tyVal), varB@(Imp.TypedVar _ tyVal')] body ->
           assert (tyVal == tyVal') $ do
-            let tyVal' = transformTy tyVal
+            let tyVal'' = transformTy tyVal
             let keyTy = Coq.TyInt -- TODO figure out the correct type
-            let mapArgTy = Coq.TyProd keyTy (Coq.TyArr tyVal')
+            let mapArgTy = Coq.TyProd keyTy (Coq.TyArr tyVal'')
             mapper <-
               withAnonBoundVar mapArgTy $ do
                 reducer' <- withBoundVarProd (varA, varB) (transformExpr body)

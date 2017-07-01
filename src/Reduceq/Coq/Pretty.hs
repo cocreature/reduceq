@@ -5,7 +5,7 @@ module Reduceq.Coq.Pretty
   , pprintTy
   , PprintM
   , runPprintM
-  , AnsiTerminal
+  , AnsiStyle
   ) where
 
 import           Reduceq.Prelude
@@ -13,7 +13,7 @@ import           Reduceq.Prelude
 import qualified Data.Map as Map
 import           Data.Text.Prettyprint.Doc hiding ((<>))
 import           Data.Text.Prettyprint.Doc.Render.Terminal
-       (AnsiTerminal, Color(..), bold, color)
+       (AnsiStyle, Color(..), bold, color)
 import           Data.Text.Prettyprint.Doc.Render.Text
 
 import           Reduceq.Coq.AST
@@ -41,13 +41,13 @@ withBoundVar x = do
   put cs
   local (Map.insert (VarId 0) c . shiftVarMap) (x c)
 
-coloredVar :: VarId -> PprintM (Doc AnsiTerminal)
+coloredVar :: VarId -> PprintM (Doc AnsiStyle)
 coloredVar id@(VarId index) = do
   c <- asks (Map.lookup id)
   case c of
     Nothing -- It is possible that there are free variables in an expression
-     -> (pure . bold . pretty @Text) ("v" <> show index)
-    Just c' -> (pure . color c' . pretty @Text) ("v" <> show index)
+     -> (pure . annotate bold . pretty @Text) ("v" <> show index)
+    Just c' -> (pure . annotate (color c') . pretty @Text) ("v" <> show index)
 
 varIdColors :: [Color]
 varIdColors = cycle [Red, Green, Yellow, Blue, Magenta, Cyan]
@@ -72,7 +72,7 @@ pprintComp IEq = "="
 pprintComp ILt = "<"
 pprintComp IGt = ">"
 
-pprintExpr :: Expr -> PprintM (Doc AnsiTerminal)
+pprintExpr :: Expr -> PprintM (Doc AnsiStyle)
 pprintExpr (Var id) = coloredVar id
 pprintExpr (IntLit i)
   | i >= 0 = pure (pretty i)
@@ -83,7 +83,7 @@ pprintExpr (Abs ty body) =
   withBoundVar $ \c ->
     parens . hang 2 . sep <$>
     sequence
-      [ pure ("fun" <+> color c "▢" <+> ":" <+> pprintTy ty <> ".")
+      [ pure ("fun" <+> annotate (color c) "▢" <+> ":" <+> pprintTy ty <> ".")
       , pprintExpr body
       ]
 pprintExpr (Case x ifL ifR) = do

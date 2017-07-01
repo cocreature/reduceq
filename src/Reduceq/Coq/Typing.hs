@@ -44,7 +44,7 @@ data InferError
   | ExpectedArr Ty
   deriving (Show, Eq, Ord)
 
-showInferError :: InferError -> Doc AnsiTerminal
+showInferError :: InferError -> Doc AnsiStyle
 showInferError (ErrorIn e err) =
   vsep
     [ "Type error:" <+> showInferError err
@@ -53,8 +53,8 @@ showInferError (ErrorIn e err) =
 showInferError (TypeMismatch actual expected) =
   (hang 4 . sep)
     [ "Type mismatch:"
-    , "expected" <+> bold (pprintTy expected)
-    , "but got" <+> bold (pprintTy actual) <> "."
+    , "expected" <+> annotate bold (pprintTy expected)
+    , "but got" <+> annotate bold (pprintTy actual) <> "."
     ]
 showInferError err = pretty (show err :: Text)
 
