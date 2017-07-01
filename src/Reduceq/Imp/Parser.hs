@@ -5,9 +5,13 @@ module Reduceq.Imp.Parser
   , Result(..)
   , _Success
   , ErrInfo(..)
+  , Program(..)
+  , ProgramSteps(..)
   , fileParser
   , fundeclParser
+  , programParser
   , renderParseError
+  , stepsFileParser
   ) where
 
 import           Reduceq.Prelude
@@ -20,7 +24,7 @@ import           Text.Parser.LookAhead (LookAheadParsing)
 import           Text.Parser.Token.Highlight
 import qualified Text.PrettyPrint.ANSI.Leijen as Pretty
 import qualified Text.Trifecta as Trifecta
-import           Text.Trifecta hiding (Parser)
+import           Text.Trifecta hiding (Parser, endBy1, sepBy1)
 import           Text.Trifecta.Delta (Delta(..))
 
 import           Reduceq.Imp.AST
@@ -162,7 +166,7 @@ exprParser = buildExpressionParser table term <?> "expression"
       key <- braces exprParser
       pure (\arr -> ReadAtKey arr key)
     functionCall = do
-      args <- NonEmpty.fromList <$> parens (exprParser `sepBy1` comma)
+      args <- parens (exprParser `sepBy1` comma)
       pure (\name -> Call name args)
 
 -- | This is only used in the parser. We transform assignments to an
@@ -271,6 +275,33 @@ fundeclParser =
 
 fileParser :: Parser (NonEmpty FunDecl)
 fileParser = some1 fundeclParser <* eof
+
+data Program =
+  Program !(NonEmpty FunDecl)
+  deriving (Show, Eq, Ord)
+
+data ProgramSteps = ProgramSteps
+  { imperativeProgram :: !Program
+  , intermediatePrograms :: ![Program]
+  , mapreduceProgram :: !Program
+  } deriving (Show, Eq, Ord)
+
+programParser :: Parser Program
+programParser = (Program <$> some1 fundeclParser) <?> "program"
+
+sepBy1 :: Alternative m => m a -> m sep -> m (NonEmpty a)
+sepBy1 p sep = (:|) <$> p <*> many (sep *> p)
+
+stepsFileParser :: Parser (ProgramSteps)
+stepsFileParser = do
+  imp <- programParser
+  separator
+  steps <- programParser `sepBy1` separator
+  pure (ProgramSteps imp (NonEmpty.init steps) (NonEmpty.last steps))
+  where
+    separator =
+      (spaces *> string "---" *> skipMany (string "-") *> spaces *> pure ()) <?>
+      "program separator"
 
 renderParseError :: ErrInfo -> Text
 renderParseError =

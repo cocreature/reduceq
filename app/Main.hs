@@ -3,11 +3,14 @@ module Main where
 
 import Reduceq.Prelude
 
+import Control.Exception.Lens
+import Data.Text.Prettyprint.Doc
 import Data.Text.Prettyprint.Doc.Render.Terminal
 import Reduceq.Coq
 import Reduceq.Coq.Pretty as Pretty
 import Reduceq.Imp.Parser hiding (Parser)
 import Reduceq.Transform
+import System.IO.Error.Lens
 
 import Options.Applicative hiding (Success, Failure)
 
@@ -26,10 +29,16 @@ data ProveSingleOptions = ProveSingleOptions
   , optOutputFile :: !(Maybe FilePath)
   } deriving (Show, Eq, Ord)
 
+data ProveStepsOptions = ProveStepsOptions
+  { optInputFile :: !FilePath
+  , optOutputFile :: !(Maybe FilePath)
+  } deriving (Show, Eq, Ord)
+
 data Commands
   = DumpCommand !DumpOptions
   | ProveCommand !ProveOptions
   | ProveSingleCommand !ProveSingleOptions
+  | ProveStepsCommand !ProveStepsOptions
   deriving (Show, Eq, Ord)
 
 argsParser :: Parser Commands
@@ -51,7 +60,13 @@ argsParser =
        (info
           (ProveSingleCommand <$> proveSingleOptions)
           (progDesc
-             "Debugging command that generates a Coq file based on only a single input file")))
+             "Debugging command that generates a Coq file based on only a single input file")) <>
+     command
+       "steps"
+       (info
+          (ProveStepsCommand <$> proveStepsOptions)
+          (progDesc
+             "Generate a coq file based on the intermediate steps containing the proof obligations")))
   where
     dumpOptions = DumpOptions <$> strArgument (metavar "FILE")
     proveOptions =
@@ -62,6 +77,14 @@ argsParser =
     proveSingleOptions =
       ProveSingleOptions <$> strArgument (metavar "FILE") <*>
       optional (strOption (short 'o' <> metavar "FILE"))
+    proveStepsOptions =
+      ProveStepsOptions <$>
+      strArgument (metavar "FILE" <> help "Path to input file") <*>
+      optional
+        (strOption
+           (short 'o' <>
+            (metavar "FILE" <>
+             help "Path to generated Coq file. Defaults to stdout")))
 
 withTypedReducedInputFile :: FilePath -> (Expr -> Ty -> IO ()) -> IO ()
 withTypedReducedInputFile path cont = do
@@ -109,6 +132,24 @@ proveSingleCommand ProveSingleOptions {optInputFile, optOutputFile} = do
          Nothing -> putStrLn output
          Just file -> writeFile file output
 
+handleNotExists :: FilePath -> IO a
+handleNotExists path = do
+  hPutDoc
+    stderr
+    (annotate
+       (bold)
+       (annotate (color Red) "Error" <> colon <+>
+        "The file" <+> dquotes (pretty path) <+> "does not exist."))
+  exitFailure
+
+proveStepsCommand :: ProveStepsOptions -> IO ()
+proveStepsCommand ProveStepsOptions {optInputFile, optOutputFile} = do
+  input <- catching_ (_IOException . errorType . _NoSuchThing) (readFile optInputFile) (handleNotExists optInputFile)
+  case parseText stepsFileParser mempty input of
+    Failure errInfo -> hPutStrLn stderr (renderParseError errInfo)
+    Success programs ->
+      print programs
+
 main :: IO ()
 main = do
   argCommand <- customExecParser (prefs showHelpOnEmpty) argsParserInfo
@@ -116,6 +157,7 @@ main = do
     DumpCommand opts -> dumpCommand opts
     ProveCommand opts -> proveCommand opts
     ProveSingleCommand opts -> proveSingleCommand opts
+    ProveStepsCommand opts -> proveStepsCommand opts
   where
     argsParserInfo =
       info

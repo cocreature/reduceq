@@ -1,0 +1,14 @@
+fn wordcount(words : [Int]) -> [Int * Int] {
+  for ((word : Int) : words) {
+    match map{word} with
+    | l : () => { map{word} := 1; }
+    | r : Int => { map{word} := r + 1; }
+    end
+  }
+  return map;
+}
+---
+fn wordcount(words : [Int]) -> [Int * Int] {
+  wordTuples : [Int * Int] = map ((x : Int) => (x, 1), words);
+  return reduceByKey((x : Int) (y : Int) => x + y, 0, wordTuples);
+}
