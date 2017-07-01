@@ -9,8 +9,9 @@ module Reduceq.Coq.AST
   , IntComp(..)
   , ProgramSteps(..)
   , liftVarsAbove
+  , instantiate
   , shiftVars
-  , betaReduce
+  , simplify
   , collectExternReferences
   ) where
 
@@ -135,14 +136,20 @@ substAt id substitute expr = go expr
         (substAt (succ id) substitute y)
     go e = over plate go e
 
+instantiate :: Expr -> Expr -> Expr
+instantiate substitute (unannotate -> Abs ty body) =
+  substAt (VarId 0) substitute body
+instantiate _ expr =
+  panic ("Tried to instantiate something that isn’t a binder: " <> show expr)
+
 unannotate :: Expr -> Expr
 unannotate = transform $ \e ->
   case e of
-    Annotated e' _ -> e'
+    Annotated e' _ -> unannotate e'
     _ -> e
 
-betaReduce :: Expr -> Expr
-betaReduce =
+simplify :: Expr -> Expr
+simplify =
   transform $ \e ->
     case e of
       (App (Abs ty body) (unannotate -> lit@(IntLit _))) ->

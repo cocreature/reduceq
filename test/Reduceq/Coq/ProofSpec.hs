@@ -28,7 +28,7 @@ testProofSingleSpec :: Text -> Text -> Expectation
 testProofSingleSpec input output =
   withParseResult fileParser input $ \decls ->
     withTransformed decls $ \transformed ->
-      let reduced = betaReduce transformed
+      let reduced = simplify transformed
       in withType reduced $ \ty ->
            displayDoc (pprintExample reduced ty) `shouldBe` output
 

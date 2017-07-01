@@ -233,6 +233,8 @@ transformExpr (Imp.IntComp comp arg1 arg2) =
   Coq.IntComp comp <$> transformExpr arg1 <*> transformExpr arg2
 transformExpr (Imp.Pair x y) =
   Coq.Pair <$> transformExpr x <*> transformExpr y
+transformExpr (Imp.Fst x) = Coq.Fst <$> transformExpr x
+transformExpr (Imp.Snd x) = Coq.Snd <$> transformExpr x
 transformExpr (Imp.Inl x) = Coq.Inl <$> transformExpr x
 transformExpr (Imp.Inr x) = Coq.Inr <$> transformExpr x
 transformExpr (Imp.Set arr index val) =

@@ -62,7 +62,17 @@ varId =
   , _styleLetter = alphaNum <|> oneOf "_'"
   , _styleReserved =
       HashSet.fromList
-        ["fn", "for", "while", "if", "else", "elseif", "return", "extern"]
+        [ "fn"
+        , "for"
+        , "while"
+        , "if"
+        , "else"
+        , "elseif"
+        , "return"
+        , "extern"
+        , "fst"
+        , "snd"
+        ]
   , _styleHighlight = Identifier
   , _styleReservedHighlight = ReservedIdentifier
   }
@@ -153,10 +163,13 @@ exprParser = buildExpressionParser table term <?> "expression"
       pure (Lambda (arg :| args) body)
     table =
       [ [Postfix arrayRead, Postfix mapRead, Postfix functionCall]
+      , [Prefix fst', Prefix snd']
       , [intBinary "*" IMul]
       , [intBinary "+" IAdd, intBinary "-" ISub]
       , [intCompBinary "==" IEq, intCompBinary "<" ILt, intCompBinary ">" IGt]
       ]
+    fst' = Fst <$ reserve varId "fst"
+    snd' = Snd <$ reserve varId "snd"
     intBinary name op = Infix (IntBinop op <$ reserve varOp name) AssocLeft
     intCompBinary name op = Infix (IntComp op <$ reserve varOp name) AssocLeft
     arrayRead = do
@@ -284,7 +297,7 @@ data ProgramSteps p = ProgramSteps
   { imperativeProgram :: !p
   , intermediatePrograms :: ![p]
   , mapreduceProgram :: !p
-  } deriving (Show, Eq, Ord)
+  } deriving (Show, Eq, Ord, Functor, Foldable, Traversable)
 
 programParser :: Parser Program
 programParser = (Program <$> some1 fundeclParser) <?> "program"

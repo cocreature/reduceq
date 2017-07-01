@@ -81,6 +81,8 @@ data Expr
   | IntLit !Integer
   | Pair !Expr
          !Expr
+  | Fst !Expr
+  | Snd !Expr
   | Inl !Expr
   | Inr !Expr
   | Set !Expr

@@ -212,17 +212,42 @@ pprintEquivalentTheorem :: Text -> ProgramSteps Expr -> Ty -> Either PprintError
 pprintEquivalentTheorem name (ProgramSteps initial steps final) ty = do
   let body =
         (hang 2 . sep)
-          ((coqForall <+> hsep argNames <> ",") :
+          ((coqForall <+> hsep args <> ",") :
            argTyAssumptions ++
            [ pprintApp
                "equivalent"
-               [ pprintApp "tapp" [pprintExpr initial, hsep argNames]
-               , pprintApp "tapp" [pprintExpr final, hsep argNames]
+               [ pprintExpr (instantiateExpr initial)
+               , pprintExpr (instantiateExpr final)
                ] <>
              "."
            ])
-  pure (vsep ["Theorem" <+> pretty name <+> colon, indent 2 body, "Admitted."])
+  pure
+    (vsep
+       [ "Theorem" <+> pretty name <+> colon
+       , indent
+           2
+           (vsep
+              (body :
+               "intros." : map (stepTo . instantiateExpr) steps ++ ["admit."]))
+       , "Admitted."
+       ])
   where
+    stepTo :: Expr -> Doc a
+    stepTo e =
+      vsep
+        [ "assert_step_to"
+        , indent 2 (pprintExpr e <> ".")
+        , indent 2 (lbrace <+> "admit." <+> rbrace)
+        ]
+    instantiateExpr :: Expr -> Expr
+    instantiateExpr e =
+      foldl'
+        (\expr arg -> instantiate arg expr)
+        e
+        (zipWith
+           (\name ty -> ExternRef (ExternReference name ty))
+           argNames
+           argTys)
     argTyAssumptions :: [Doc a]
     argTyAssumptions =
       zipWith
@@ -234,8 +259,10 @@ pprintEquivalentTheorem name (ProgramSteps initial steps final) ty = do
       let argTys' (TyFun dom cod) = dom : argTys' cod
           argTys' _ = []
       in argTys' ty
-    argNames :: [Doc a]
-    argNames = map (\i -> "arg" <> pretty i) [1 .. numArgs]
+    args :: [Doc a]
+    args = map pretty argNames
+    argNames :: [Text]
+    argNames = map (\i -> "arg" <> show i) [1 .. numArgs]
     numArgs :: Int
     numArgs = length argTys
 

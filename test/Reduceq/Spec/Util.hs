@@ -55,7 +55,7 @@ withTypedReduced :: Text -> (Coq.Expr  -> Coq.Ty -> Expectation) -> Expectation
 withTypedReduced input cont =
   withParseResult fileParser input $ \decls ->
     withTransformed decls $ \transformed ->
-      let reduced = Coq.betaReduce transformed
+      let reduced = Coq.simplify transformed
       in withType reduced $ \ty -> cont reduced ty
 
 expectParseResult :: (Show a, Eq a) => Parser a -> Text -> a -> Expectation
