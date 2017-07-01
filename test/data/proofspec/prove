@@ -10,7 +10,7 @@ fn f(x : Int) -> Int {
 ===
 Require Import Coq.Lists.List.
 Import ListNotations.
-Require Import Determinism Misc Notations Preservation Rules Step Substitutivity Term Typing Util.
+Require Import Determinism Misc Notations Preservation Rules Setoid_Equivalence Step Substitutivity Term Typing Util.
 Definition imperative g :=
   (tapp (tabs (TArrow TInt TInt) (tabs TInt (tapp (tvar 1) (tvar 0)))) g).
 Definition mapreduce g :=

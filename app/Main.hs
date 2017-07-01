@@ -144,15 +144,27 @@ handleNotExists path = do
 
 proveStepsCommand :: ProveStepsOptions -> IO ()
 proveStepsCommand ProveStepsOptions {optInputFile, optOutputFile} = do
-  input <- catching_ (_IOException . errorType . _NoSuchThing) (readFile optInputFile) (handleNotExists optInputFile)
+  input <-
+    catching_
+      (_IOException . errorType . _NoSuchThing)
+      (readFile optInputFile)
+      (handleNotExists optInputFile)
   case parseText stepsFileParser mempty input of
     Failure errInfo -> hPutStrLn stderr (renderParseError errInfo)
     Success steps -> do
-      print steps
       case runTransformM (transformProgramSteps steps) of
         Left err -> hPutStrLn stderr (showTransformError err)
         Right steps ->
-          print steps
+          case runInferM (inferStepsType steps) of
+            Left err -> hPutDoc stderr (showInferError err)
+            Right ty ->
+              case pprintProofStepsObligation steps ty of
+                Left err -> hPutStrLn stderr (showPprintError err)
+                Right doc ->
+                  let output = Pretty.displayDoc doc
+                  in case optOutputFile of
+                       Nothing -> putStr output
+                       Just file -> writeFile file output
 
 main :: IO ()
 main = do

@@ -4,8 +4,8 @@ fn f(x : Int) -> Int {
 ===
 Require Import Coq.Lists.List.
 Import ListNotations.
-Require Import Determinism Misc Notations Preservation Rules Step Substitutivity Term Typing Util.
-Definition example := (tabs TInt (tint_binop Add (tvar 0) (tint 1))).
+Require Import Determinism Misc Notations Preservation Rules Setoid_Equivalence Step Substitutivity Term Typing Util.
+Definition example := (tabs TInt ((tvar 0) + (tint 1))).
 Lemma example_typing :
   empty_ctx |-- example \in (TArrow TInt TInt).
 Proof. unfold example. repeat econstructor; eauto. Qed.
@@ -17,7 +17,7 @@ fn f(x : Int) -> Int {
 ===
 Require Import Coq.Lists.List.
 Import ListNotations.
-Require Import Determinism Misc Notations Preservation Rules Step Substitutivity Term Typing Util.
+Require Import Determinism Misc Notations Preservation Rules Setoid_Equivalence Step Substitutivity Term Typing Util.
 Definition example g :=
   (tapp (tabs (TArrow TInt TInt) (tabs TInt (tapp (tvar 1) (tvar 0)))) g).
 Lemma example_typing :
@@ -34,39 +34,33 @@ fn wordcount(docs : [Int]) -> [Int * Int] {
 ===
 Require Import Coq.Lists.List.
 Import ListNotations.
-Require Import Determinism Misc Notations Preservation Rules Step Substitutivity Term Typing Util.
+Require Import Determinism Misc Notations Preservation Rules Setoid_Equivalence Step Substitutivity Term Typing Util.
 Definition example splitWords :=
   (tapp
-     (tabs
-        (TArrow TInt (TList Local TInt))
-        (tabs
-           (TList Local TInt)
-           (tapp
-              (tabs
-                 (TList Local TInt)
+     (tabs (TArrow TInt (TList TInt))
+           (tabs (TList TInt)
                  (tapp
-                    (tabs
-                       (TList Local (TProd  TInt TInt))
-                       (tmap
-                          (tabs
-                             (TProd  TInt (TList Local TInt))
-                             (tpair
-                                (tfst (tvar 0))
-                                (tfold
-                                   (tabs
-                                      (TProd  TInt TInt)
-                                      (tint_binop Add (tfst (tvar 0)) (tsnd (tvar 0))))
-                                   (tint 0)
-                                   (tsnd (tvar 0)))))
-                          (tgroup (tvar 0))))
-                    (tmap (tabs TInt (tpair (tvar 0) (tint 1))) (tvar 0))))
-              (tconcat (tmap (tabs TInt (tapp (tvar 2) (tvar 0))) (tvar 0))))))
+                    (tabs (TList TInt)
+                          (tapp
+                             (tabs (TList (TInt :*: TInt))
+                                   (tmap
+                                      (tabs (TInt :*: (TList TInt))
+                                            (tpair
+                                               (tfst (tvar 0))
+                                               (tfold
+                                                  (tabs (TInt :*: TInt)
+                                                        ((tfst (tvar 0)) + (tsnd (tvar 0))))
+                                                  (tint 0)
+                                                  (tsnd (tvar 0)))))
+                                      (tgroup (tvar 0))))
+                             (tmap (tabs TInt (tpair (tvar 0) (tint 1))) (tvar 0))))
+                    (tconcat (tmap (tabs TInt (tapp (tvar 2) (tvar 0))) (tvar 0))))))
      splitWords).
 Lemma example_typing :
-  forall splitWords, empty_ctx |-- splitWords \in (TArrow TInt (TList Local TInt)) ->
+  forall splitWords, empty_ctx |-- splitWords \in (TArrow TInt (TList TInt)) ->
                 empty_ctx |-- example splitWords \in (TArrow
-                                                        (TList Local TInt)
-                                                        (TList Local (TProd  TInt TInt))).
+                                                        (TList TInt)
+                                                        (TList (TInt :*: TInt))).
 Proof. unfold example. repeat econstructor; eauto. Qed.
 ---
 extern fn splitWords(doc : Int) -> [Int] {}
@@ -86,38 +80,36 @@ fn wordcount(docs : [Int]) -> [Int * Int] {
 ===
 Require Import Coq.Lists.List.
 Import ListNotations.
-Require Import Determinism Misc Notations Preservation Rules Step Substitutivity Term Typing Util.
+Require Import Determinism Misc Notations Preservation Rules Setoid_Equivalence Step Substitutivity Term Typing Util.
 Definition example splitWords :=
   (tapp
-     (tabs
-        (TArrow TInt (TList Local TInt))
-        (tabs
-           (TList Local TInt)
-           (tfold
-              (tabs
-                 (TProd  (TList Local (TProd  TInt TInt)) TInt)
-                 (tapp
-                    (tabs
-                       (TList Local TInt)
-                       (tfold
-                          (tabs
-                             (TProd  (TList Local (TProd  TInt TInt)) TInt)
-                             (tcase
-                                (tread_at_key (tsnd (tvar 0)) (tfst (tvar 0)))
-                                (tset_at_key (tsnd (tvar 1)) (tint 1) (tfst (tvar 1)))
-                                (tset_at_key
-                                   (tsnd (tvar 1))
-                                   (tint_binop Add (tvar 0) (tint 1))
-                                   (tfst (tvar 1)))))
-                          (tfst (tvar 1))
-                          (tvar 0)))
-                    (tapp (tvar 2) (tsnd (tvar 0)))))
-              (tlist [])
-              (tvar 0))))
+     (tabs (TArrow TInt (TList TInt))
+           (tabs (TList TInt)
+                 (tfold
+                    (tabs ((TList (TInt :*: TInt)) :*: TInt)
+                          (tapp
+                             (tabs (TList TInt)
+                                   (tfold
+                                      (tabs ((TList (TInt :*: TInt)) :*: TInt)
+                                            (tcase
+                                               (tread_at_key (tfst (tvar 0)) (tsnd (tvar 0)))
+                                               (twrite_at_key
+                                                  (tfst (tvar 1))
+                                                  (tsnd (tvar 1))
+                                                  (tint 1))
+                                               (twrite_at_key
+                                                  (tfst (tvar 1))
+                                                  (tsnd (tvar 1))
+                                                  ((tvar 0) + (tint 1)))))
+                                      (tfst (tvar 1))
+                                      (tvar 0)))
+                             (tapp (tvar 2) (tsnd (tvar 0)))))
+                    (tlist [])
+                    (tvar 0))))
      splitWords).
 Lemma example_typing :
-  forall splitWords, empty_ctx |-- splitWords \in (TArrow TInt (TList Local TInt)) ->
+  forall splitWords, empty_ctx |-- splitWords \in (TArrow TInt (TList TInt)) ->
                 empty_ctx |-- example splitWords \in (TArrow
-                                                        (TList Local TInt)
-                                                        (TList Local (TProd  TInt TInt))).
+                                                        (TList TInt)
+                                                        (TList (TInt :*: TInt))).
 Proof. unfold example. repeat econstructor; eauto. Qed.

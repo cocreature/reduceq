@@ -1,6 +1,7 @@
 module Reduceq.Coq.Proof
   ( pprintExample
   , pprintProofObligation
+  , pprintProofStepsObligation
   , PprintError(..)
   , showPprintError
   , MatchError(..)
@@ -26,17 +27,10 @@ pprintTy ty =
     TyReal -> "TReal"
     TyBool -> "TBool"
     TyUnit -> "TUnit"
-    TyProd x y -> parens ("TProd " <+> pprintTy x <+> pprintTy y)
-    TyArr t -> parens ("TList" <+> "Local" <+> pprintTy t)
+    TyProd x y -> parens (pprintTy x <+> ":*:" <+> pprintTy y)
+    TyArr t -> parens ("TList" <+> pprintTy t)
     TyFun cod dom -> pprintApp "TArrow" [pprintTy cod, pprintTy dom]
     TySum l r -> parens ("TSum" <+> pprintTy l <+> pprintTy r)
-
-pprintOp :: IntBinop -> Doc a
-pprintOp op =
-  case op of
-    IAdd -> "Add"
-    IMul -> "Mul"
-    ISub -> "Sub"
 
 pprintComp :: IntComp -> Doc a
 pprintComp comp =
@@ -58,7 +52,8 @@ pprintExpr (IntLit i) =
   in parens ("tint" <+> lit)
 pprintExpr (App f x) =
   pprintApp "tapp" [pprintExpr f, pprintExpr x]
-pprintExpr (Abs ty body) = pprintApp "tabs" [pprintTy ty, pprintExpr body]
+pprintExpr (Abs ty body) =
+  parens ("tabs" <+> (align . sep) [pprintTy ty, pprintExpr body])
 pprintExpr (Case x ifL ifR) =
   pprintApp "tcase" [pprintExpr x, pprintExpr ifL, pprintExpr ifR]
 pprintExpr (Fst x) = parens ("tfst" <+> pprintExpr x)
@@ -67,8 +62,13 @@ pprintExpr (Pair x y) = pprintApp "tpair" [pprintExpr x, pprintExpr y]
 pprintExpr (If cond ifTrue ifFalse) =
   (parens . hang 3 . Pretty.group)
     ("tif" <+> pprintExpr cond <+> pprintExpr ifTrue <+> pprintExpr ifFalse)
-pprintExpr (IntBinop op x y) =
-  parens ("tint_binop" <+> pprintOp op <+> pprintExpr x <+> pprintExpr y)
+pprintExpr (IntBinop op x y) = parens (pprintExpr x <+> op' <+> pprintExpr y)
+  where
+    op' =
+      case op of
+        IAdd -> "+"
+        ISub -> "-"
+        IMul -> "*"
 pprintExpr (IntComp comp x y) =
   parens ("tint_comp" <+> pprintComp comp <+> pprintExpr x <+> pprintExpr y)
 pprintExpr (Iter f x) = parens ("titer" <+> pprintExpr f <+> pprintExpr x)
@@ -79,11 +79,11 @@ pprintExpr (Inr x) =
 pprintExpr (Set arr index val) =
   parens ("twrite" <+> pprintExpr arr <+> pprintExpr index <+> pprintExpr val)
 pprintExpr (SetAtKey arr key val) =
-  pprintApp "tset_at_key" [pprintExpr key, pprintExpr val, pprintExpr arr]
+  pprintApp "twrite_at_key" [pprintExpr arr, pprintExpr key, pprintExpr val]
 pprintExpr (Read arr index) =
   parens ("tread" <+> pprintExpr arr <+> pprintExpr index)
 pprintExpr (ReadAtKey arr key) =
-  pprintApp "tread_at_key" [pprintExpr key, pprintExpr arr]
+  pprintApp "tread_at_key" [pprintExpr arr, pprintExpr key]
 pprintExpr Unit = "tunit"
 pprintExpr (Annotated e _) = pprintExpr e
 pprintExpr (Map f xs) =
@@ -157,6 +157,7 @@ coqImports =
         , "Notations"
         , "Preservation"
         , "Rules"
+        , "Setoid_Equivalence"
         , "Step"
         , "Substitutivity"
         , "Term"
@@ -206,6 +207,37 @@ strictUnion = Map.mergeA Map.preserveMissing Map.preserveMissing whenMatched
            if v == v'
              then Right v
              else Left (MatchError k v v'))
+
+pprintEquivalentTheorem :: Text -> ProgramSteps Expr -> Ty -> Either PprintError (Doc a)
+pprintEquivalentTheorem name (ProgramSteps initial steps final) ty = do
+  let body =
+        (hang 2 . sep)
+          ((coqForall <+> hsep argNames <> ",") :
+           argTyAssumptions ++
+           [ pprintApp
+               "equivalent"
+               [ pprintApp "tapp" [pprintExpr initial, hsep argNames]
+               , pprintApp "tapp" [pprintExpr final, hsep argNames]
+               ] <>
+             "."
+           ])
+  pure (vsep ["Theorem" <+> pretty name <+> colon, indent 2 body, "Admitted."])
+  where
+    argTyAssumptions :: [Doc a]
+    argTyAssumptions =
+      zipWith
+        (\ty' i -> pprintTypingJudgement ("arg" <> show i) [] ty' <+> "->")
+        argTys
+        [1 :: Int ..]
+    argTys :: [Ty]
+    argTys =
+      let argTys' (TyFun dom cod) = dom : argTys' cod
+          argTys' _ = []
+      in argTys' ty
+    argNames :: [Doc a]
+    argNames = map (\i -> "arg" <> pretty i) [1 .. numArgs]
+    numArgs :: Int
+    numArgs = length argTys
 
 pprintEquivalence :: Text -> (Expr, Ty) -> (Expr, Ty) -> Either PprintError (Doc a)
 pprintEquivalence _ (_, ty) (_, ty')
@@ -278,3 +310,8 @@ pprintProofObligation (imperative, imperativeTy) (mapreduce, mapreduceTy) = do
         , equivalence
         , mempty
         ]))
+
+pprintProofStepsObligation :: ProgramSteps Expr -> Ty -> Either PprintError (Doc a)
+pprintProofStepsObligation steps ty = do
+  equivalent <- pprintEquivalentTheorem "equivalent" steps ty
+  pure (vsep (coqImports ++ [equivalent]))
