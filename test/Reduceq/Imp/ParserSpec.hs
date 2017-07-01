@@ -14,6 +14,9 @@ import Reduceq.Spec.Util
 testParseFunction :: Text -> FunDecl -> Expectation
 testParseFunction input result = expectParseResult fundeclParser input result
 
+testParseSteps :: Text -> ProgramSteps Program -> Expectation
+testParseSteps input result = expectParseResult stepsFileParser input result
+
 functionParseTests :: [(Text, FunDecl)]
 functionParseTests =
   [ ( "fn f(x : Int) -> Int { return (x + 1); }"
@@ -166,8 +169,90 @@ functionParseTests =
            ]))
   ]
 
+
+stepsParseTests :: [(Text, ProgramSteps Program)]
+stepsParseTests =
+  [ ( "fn wordcount(words : [Int]) -> [Int * Int] {\
+      \  m : [Int * Int] = [];\
+      \  for ((word : Int) : words) {\
+      \    match m{word} with\
+      \    | l : () => { m{word} := 1; }\
+      \    | r : Int => { m{word} := r + 1; }\
+      \    end\
+      \  }\
+      \  return m;\
+      \}\
+      \---\
+      \fn wordcount(words : [Int]) -> [Int * Int] {\
+      \  wordTuples : [Int * Int] = map ((x : Int) => (x, 1), words);\
+      \  return reduceByKey((x : Int) (y : Int) => x + y, 0, wordTuples);\
+      \}"
+    , ProgramSteps
+        (Program
+           (FunctionDeclaration
+              "wordcount"
+              [TypedVar "words" (TyArr TyInt)]
+              (TyArr (TyProd TyInt TyInt))
+              (FunctionBody
+                 [ VarDecl
+                     (TypedVar "m" (TyArr (TyProd TyInt TyInt)))
+                     EmptyArray
+                 , ForEach
+                     (TypedVar "word" TyInt)
+                     (VarRef "words")
+                     [ Match
+                         (ReadAtKey (VarRef "m") (VarRef "word"))
+                         (MatchClause
+                            (TypedVar "l" TyUnit)
+                            [ Assgn
+                                "m"
+                                (SetAtKey
+                                   (VarRef "m")
+                                   (VarRef "word")
+                                   (IntLit 1))
+                            ])
+                         (MatchClause
+                            (TypedVar "r" TyInt)
+                            [ Assgn
+                                "m"
+                                (SetAtKey
+                                   (VarRef "m")
+                                   (VarRef "word")
+                                   (IntBinop IAdd (VarRef "r") (IntLit 1)))
+                            ])
+                     ]
+                 , Return (VarRef "m")
+                 ]) :|
+            []))
+        []
+        (Program
+           (FunctionDeclaration
+              "wordcount"
+              [TypedVar "words" (TyArr TyInt)]
+              (TyArr (TyProd TyInt TyInt))
+              (FunctionBody
+                 [ VarDecl
+                     (TypedVar "wordTuples" (TyArr (TyProd TyInt TyInt)))
+                     (Call
+                        (VarRef "map")
+                        (Lambda
+                           (TypedVar "x" TyInt :| [])
+                           (Pair (VarRef "x") (IntLit 1)) :|
+                         [VarRef "words"]))
+                 , Return
+                     (Call
+                        (VarRef "reduceByKey")
+                        (Lambda
+                           (TypedVar "x" TyInt :| [TypedVar "y" TyInt])
+                           (IntBinop IAdd (VarRef "x") (VarRef "y")) :|
+                         [IntLit 0, VarRef "wordTuples"]))
+                 ]) :|
+            [])))
+  ]
+
+
 parserSpec :: Spec
-parserSpec =
+parserSpec = do
   describe "parse function" $ do
     mapM_
       (\(test, i) ->
@@ -175,3 +260,10 @@ parserSpec =
            ("parses example " <> show i <> " correctly")
            (uncurry testParseFunction test))
       (zip functionParseTests [(1 :: Int) ..])
+  describe "parse program steps" $ do
+    mapM_
+      (\(test, i) ->
+         it
+           ("parser example " <> show i <> " correctly")
+           (uncurry testParseSteps test))
+      (zip stepsParseTests [(1 :: Int) ..])
