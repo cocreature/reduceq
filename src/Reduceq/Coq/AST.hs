@@ -7,6 +7,7 @@ module Reduceq.Coq.AST
   , VarId(..)
   , IntBinop(..)
   , IntComp(..)
+  , ProgramSteps(..)
   , liftVarsAbove
   , shiftVars
   , betaReduce
@@ -15,7 +16,7 @@ module Reduceq.Coq.AST
 
 import Reduceq.Prelude
 
-import Reduceq.Imp (IntBinop(..), IntComp(..))
+import Reduceq.Imp (IntBinop(..), IntComp(..), ProgramSteps(..))
 
 import Control.Lens hiding ((&), index, op, List)
 import Data.Data

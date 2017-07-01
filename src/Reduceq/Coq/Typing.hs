@@ -1,5 +1,6 @@
 module Reduceq.Coq.Typing
   ( inferType
+  , inferStepsType
   , runInferM
   , InferM
   , InferError(..)
@@ -312,3 +313,13 @@ inferType (List xss) = do
   case tys of
     (t:ts) -> traverse_ (guardTyEqual t) ts *> pure (TyArr t)
     _ -> panic "Cannot infer type of empty list literal"
+
+inferStepsType :: ProgramSteps Expr -> InferM Ty
+inferStepsType (ProgramSteps initial steps final) = do
+  initialTy <- inferType initial
+  stepsTys <- traverse inferType steps
+  finalTy <- inferType final
+  foldlM
+    (\ty (expr, ty') -> guardTyEqualIn expr ty ty')
+    initialTy
+    ((final, finalTy) :| zip steps stepsTys)
