@@ -147,8 +147,12 @@ proveStepsCommand ProveStepsOptions {optInputFile, optOutputFile} = do
   input <- catching_ (_IOException . errorType . _NoSuchThing) (readFile optInputFile) (handleNotExists optInputFile)
   case parseText stepsFileParser mempty input of
     Failure errInfo -> hPutStrLn stderr (renderParseError errInfo)
-    Success programs ->
-      print programs
+    Success steps -> do
+      print steps
+      case runTransformM (transformProgramSteps steps) of
+        Left err -> hPutStrLn stderr (showTransformError err)
+        Right steps ->
+          print steps
 
 main :: IO ()
 main = do

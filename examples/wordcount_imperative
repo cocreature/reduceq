@@ -1,9 +1,10 @@
 fn wordcount(words : [Int]) -> [Int * Int] {
+  m : [Int * Int] = [];
   for ((word : Int) : words) {
-    match map{word} with
-    | l : () => { map{word} := 1; }
-    | r : Int => { map{word} := r + 1; }
+    match m{word} with
+    | l : () => { m{word} := 1; }
+    | r : Int => { m{word} := r + 1; }
     end
   }
-  return map;
+  return m;
 }

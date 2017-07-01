@@ -280,10 +280,10 @@ data Program =
   Program !(NonEmpty FunDecl)
   deriving (Show, Eq, Ord)
 
-data ProgramSteps = ProgramSteps
-  { imperativeProgram :: !Program
-  , intermediatePrograms :: ![Program]
-  , mapreduceProgram :: !Program
+data ProgramSteps p = ProgramSteps
+  { imperativeProgram :: !p
+  , intermediatePrograms :: ![p]
+  , mapreduceProgram :: !p
   } deriving (Show, Eq, Ord)
 
 programParser :: Parser Program
@@ -292,7 +292,7 @@ programParser = (Program <$> some1 fundeclParser) <?> "program"
 sepBy1 :: Alternative m => m a -> m sep -> m (NonEmpty a)
 sepBy1 p sep = (:|) <$> p <*> many (sep *> p)
 
-stepsFileParser :: Parser (ProgramSteps)
+stepsFileParser :: Parser (ProgramSteps Program)
 stepsFileParser = do
   imp <- programParser
   separator

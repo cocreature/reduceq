@@ -3,6 +3,8 @@ module Reduceq.Transform
   ( runTransformM
   , transformDecl
   , transformDecls
+  , transformProgram
+  , transformProgramSteps
   , TransformError(..)
   , showTransformError
   ) where
@@ -108,7 +110,6 @@ transformDecls decls
        (transformDecl decl))
     (transformDecl (NonEmpty.last decls))
     (NonEmpty.init decls)
-
 
 transformAssgnLoc :: Imp.VarId -> TransformM Imp.TypedVar
 transformAssgnLoc id = do
@@ -298,3 +299,12 @@ transformTy (Imp.TyFun args retTy) =
   foldr Coq.TyFun (transformTy retTy) (map transformTy args)
 transformTy (Imp.TyProd a b) = Coq.TyProd (transformTy a) (transformTy b)
 transformTy (Imp.TySum a b) = Coq.TySum (transformTy a) (transformTy b)
+
+transformProgram :: Imp.Program -> TransformM Coq.Expr
+transformProgram (Imp.Program decls) = transformDecls decls
+
+transformProgramSteps :: Imp.ProgramSteps Imp.Program -> TransformM (Imp.ProgramSteps Coq.Expr)
+transformProgramSteps (Imp.ProgramSteps initial steps final) =
+  Imp.ProgramSteps <$> transformProgram initial <*>
+  traverse transformProgram steps <*>
+  transformProgram final
