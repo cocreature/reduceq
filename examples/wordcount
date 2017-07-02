@@ -11,12 +11,13 @@ fn wordcount(words : [Int]) -> [Int * Int] {
 ---
 fn wordcount(words : [Int]) -> [Int * Int] {
   m : [Int * Int] = [];
-  wordTuples : [Int * Int] = map ((x : Int) => (x, 1), words);
-  for ((wordTuple : Int * Int) : wordTuples) {
-    match m{fst wordTuple} with
-    | l : () => { m{fst wordTuple} := snd wordTuple; }
-    | r : Int => { m{fst wordTuple} := r + snd wordTuple; }
+  for ((word : Int) : words) {
+    val : Int = 0;
+    match m{word} with
+    | l : () => { val := 1; }
+    | r : Int => { val := r + 1; }
     end
+    m{word} := val;
   }
   return m;
 }

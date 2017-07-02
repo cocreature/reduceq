@@ -119,10 +119,15 @@ transformAssgnLoc id = do
     Just (_, ty) -> pure (Imp.TypedVar id ty)
 
 collectAssgns :: [Imp.Stmt] -> TransformM (Set Imp.TypedVar)
-collectAssgns =
-  fmap mconcat .
-  mapM (fmap Set.singleton . transformAssgnLoc) .
-  toListOf (traverse . Imp.collectAssgnLocs)
+collectAssgns stmts = do
+  -- Scoping is quite primitive. If a variable is declared anywhere in
+  -- a block (i.e., the list of statements) it hides any references to
+  -- variables outside of the block so we don’t include it in the list
+  -- of external assignments.
+  let assgns = Set.fromList (toListOf (traverse . Imp.collectAssgnLocs) stmts)
+      decls = Set.fromList (toListOf (traverse . Imp._VarDecl . _1 . to Imp.varName) stmts)
+      assgns' = assgns Set.\\ decls
+  (fmap Set.fromList . traverse transformAssgnLoc . toList) assgns'
 
 toTuple :: [Imp.TypedVar] -> Imp.Expr
 toTuple vars =

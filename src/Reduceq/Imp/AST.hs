@@ -13,6 +13,8 @@ module Reduceq.Imp.AST
   , TypedVar(..)
   , funDeclTy
   , collectAssgnLocs
+  , _Assgn
+  , _VarDecl
   ) where
 
 import Reduceq.Prelude
