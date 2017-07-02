@@ -11,10 +11,8 @@ fn f(x : Int) -> Int {
 Require Import Coq.Lists.List.
 Import ListNotations.
 Require Import Determinism Misc Notations Preservation Rules Setoid_Equivalence Step Substitutivity Term Typing Util.
-Definition imperative g :=
-  (tapp (tabs (TArrow TInt TInt) (tabs TInt (tapp (tvar 1) (tvar 0)))) g).
-Definition mapreduce g :=
-  (tapp (tabs (TArrow TInt TInt) (tabs TInt (tapp (tvar 1) (tvar 0)))) g).
+Definition imperative g := (tabs TInt (tapp g (tvar 0))).
+Definition mapreduce g := (tabs TInt (tapp g (tvar 0))).
 Lemma imperative_typing :
   forall g, empty_ctx |-- g \in (TArrow TInt TInt) ->
        empty_ctx |-- imperative g \in (TArrow TInt TInt).

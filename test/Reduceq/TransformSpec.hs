@@ -84,12 +84,12 @@ reducedTransformTests =
   , ( "fn f() -> Int { x : Int = 1; y : Int = 2; z : Int = 3; if (x < 0) { x := 42; y := 43; } else { z := 47; } return (x+y+z); }"
     , "((fun ▢ : Int * Int * Int. (((fst v0) + (fst (snd v0))) + (snd (snd v0)))) (if (1 < 0) (42, (43, 3)) (1, (2, 47))))")
   , ( "fn f(n : Int) -> Int { i : Int = 0; j : Int = 0; while (i < n) { i := i + 1; j := j + 1; } return (j); }"
-    , "(fun ▢ : Int. ((fun ▢ : Int * Int. (snd v0)) (iter (fun ▢ : Int * Int. (if ((fst v0) < v1) ((fun ▢ : Int. ((fun ▢ : Int. (inr (v1, v0))) ((snd v1) + 1))) ((fst v0) + 1)) (inl ()))) (0, 0))))")
+    , "(fun ▢ : Int. (snd (iter (fun \9634 : Int * Int. (if ((fst v0) < v1) (inr (((fst v0) + 1), ((snd v0) + 1))) (inl ()))) (0, 0))))")
   , ( "fn f(n : [Int]) -> Int {\n\
       \  n[0] := 1;\n\
       \  return n[0];\n\
       \}\n"
-    , "(fun ▢ : [Int]. ((fun ▢ : [Int]. (read v0 0)) (set v0 0 1)))")
+    , "(fun \9634 : [Int]. (read (set v0 0 1) 0))")
   , ( "fn h(x : Int) -> Int {\
       \  return x;\
       \}\
@@ -100,19 +100,19 @@ reducedTransformTests =
       \  x : Int = h(1);\
       \  return g(x, 2, 3);\
       \}"
-    , "((fun ▢ : Int → Int. ((fun ▢ : Int → Int → Int → Int. ((fun ▢ : Int. (((v1 3) 2) v0)) (v1 1))) (fun ▢ : Int. (fun ▢ : Int. (fun ▢ : Int. ((v2 + v1) + v0)))))) (fun ▢ : Int. v0))")
+    , "((((fun ▢ : Int. (fun ▢ : Int. (fun \9634 : Int. ((v2 + v1) + v0)))) 3) 2) ((fun ▢ : Int. v0) 1))")
   , ( "extern fn f(x : Int) -> Int {}\
       \fn g(x : Int) -> Int {\
       \ return f(x);\
       \}"
-    , "((fun ▢ : Int → Int. (fun ▢ : Int. (v1 v0))) f)")
+    , "(fun \9634 : Int. (f v0))")
   , ( "extern fn splitWords(doc : Int) -> [Int] {}\
       \fn wordcount(docs : [Int]) -> [Int * Int] {\
       \  words : [Int] = flatMap((doc : Int) => splitWords(doc), docs);\
       \  wordTuples : [Int * Int] = map ((x : Int) => (x, 1), words);\
       \  return reduceByKey((x : Int) (y : Int) => x + y, 0, wordTuples);\
       \}"
-    , "((fun ▢ : Int → [Int]. (fun ▢ : [Int]. ((fun ▢ : [Int]. ((fun ▢ : [Int * Int]. (map (fun ▢ : Int * [Int]. ((fst v0), (fold (fun ▢ : Int * Int. ((fst v0) + (snd v0))) 0 (snd v0)))) (group v0))) (map (fun ▢ : Int. (v0, 1)) v0))) (concat (map (fun ▢ : Int. (v2 v0)) v0))))) splitWords)")
+    , "(fun \9634 : [Int]. (map (fun \9634 : Int * [Int]. ((fst v0), (fold (fun \9634 : Int * Int. ((fst v0) + (snd v0))) 0 (snd v0)))) (group (map (fun \9634 : Int. (v0, 1)) (concat (map (fun \9634 : Int. (splitWords v0)) v0))))))")
   , ( "fn wordcount(docs : [Int]) -> [Int * Int] {\
       \  map : [Int * Int] = [];\
       \  for ((doc : Int) : docs) {\

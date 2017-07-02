@@ -17,10 +17,11 @@ module Reduceq.Coq.AST
 
 import Reduceq.Prelude
 
-import Reduceq.Imp (IntBinop(..), IntComp(..), ProgramSteps(..))
-
 import Control.Lens hiding ((&), index, op, List)
+import Control.Monad.State.Strict
 import Data.Data
+
+import Reduceq.Imp (IntBinop(..), IntComp(..), ProgramSteps(..))
 
 -- | DeBruijn indices
 newtype VarId =
@@ -148,13 +149,28 @@ unannotate = transform $ \e ->
     Annotated e' _ -> unannotate e'
     _ -> e
 
+countReferences :: VarId -> Expr -> Int
+countReferences id expr = execState (go id expr) 0
+  where go :: VarId -> Expr -> State Int ()
+        go id (Var id')
+          | id == id' = modify' (+1)
+          | otherwise = pure ()
+        go id (Abs _ body) = go (succ id) body
+        go id (Case c x y) =
+          go id c >>
+          go (succ id) x >>
+          go (succ id) y
+        go id e = traverseOf_ plate (go id) e
+
 simplify :: Expr -> Expr
 simplify =
   transform $ \e ->
     case e of
       (App (Abs ty body) (unannotate -> lit@(IntLit _))) ->
-        substAt (VarId 0) lit body `Annotated` ty
+        substAt (VarId 0) lit body
       (App (Abs ty body) (unannotate -> lit@(List _))) ->
-        substAt (VarId 0) lit body `Annotated` ty
+        substAt (VarId 0) lit body
       (App (Abs ty (Var (VarId 0))) arg) -> arg `Annotated` ty
+      (App (Abs ty body) arg)
+        | countReferences (VarId 0) body <= 1 -> substAt (VarId 0) arg body
       _ -> e
