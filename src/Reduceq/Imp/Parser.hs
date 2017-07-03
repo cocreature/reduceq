@@ -128,8 +128,7 @@ tyParser = buildExpressionParser table term <?> "type"
 
 tyVarParser :: Parser TypedVar
 tyVarParser =
-  (do name <- identifier
-      _ <- colon
+  (do name <- try (identifier <* colon)
       ty <- tyParser
       pure (TypedVar name ty)) <?>
   "typed variable"
@@ -206,7 +205,7 @@ assgnLocParser =
 
 stmtParser :: Parser Stmt
 stmtParser =
-  choice [while, forEach, match, ret, if_, varDecl, assgn] <?> "statement"
+  choice [while, forEach, match, ret, if_, assgn, varDecl] <?> "statement"
   where
     ret =
       (do reserve varId "return"
@@ -215,8 +214,7 @@ stmtParser =
           pure (Return expr)) <?>
       "return statement"
     assgn =
-      (do loc <- assgnLocParser
-          reserve varOp ":="
+      (do loc <- try (assgnLocParser <* reserve varOp ":=")
           val <- exprParser
           _ <- semi
           case loc of
@@ -225,7 +223,7 @@ stmtParser =
             MapLoc id key -> pure (Assgn id (SetAtKey (VarRef id) key val))) <?>
       "assignment"
     varDecl =
-      (do tyVar <- try tyVarParser
+      (do tyVar <- tyVarParser
           reserve varOp "="
           val <- exprParser
           _ <- semi
