@@ -13,6 +13,8 @@ build-type:          Simple
 extra-source-files:  README.md
                      test/data/proofspec/prove_single
                      test/data/proofspec/prove
+                     test/data/proofspec/prove_steps/wordcount/input
+                     test/data/proofspec/prove_steps/wordcount/output
 cabal-version:       >=1.10
 
 library

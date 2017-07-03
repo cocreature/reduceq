@@ -7,6 +7,7 @@ module Reduceq.Transform
   , transformProgramSteps
   , TransformError(..)
   , showTransformError
+  , TransformM
   ) where
 
 import           Reduceq.Prelude

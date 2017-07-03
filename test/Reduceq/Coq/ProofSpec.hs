@@ -7,7 +7,7 @@ import Reduceq.Prelude
 import Test.Hspec
 
 import Reduceq.Coq
-import Reduceq.Imp.Parser (fileParser)
+import Reduceq.Imp.Parser (fileParser, stepsFileParser)
 
 import Reduceq.Spec.Util
 
@@ -23,6 +23,19 @@ coqProofSpec = do
       "test/data/proofspec/prove"
       (\i -> "generates the correct Coq proof obligation for example " <> show i)
       (\[inp1, inp2, outp] -> testProofSpec inp1 inp2 outp)
+  describe "generate proof obligation for steps" $ do
+    it "generates correct Coq file for example 1" $ do
+      input <-
+        liftIO (readFile "test/data/proofspec/prove_steps/wordcount/input")
+      withParseResult stepsFileParser input $ \steps ->
+        withTransformedSteps steps $ \transformed ->
+          let reduced = fmap simplify transformed
+          in withStepsType reduced $ \ty ->
+               case pprintProofStepsObligation reduced ty of
+                 Left err -> (expectationFailure . toS . showPprintError) err
+                 Right doc ->
+                   displayDoc doc `shouldBeFile`
+                   "test/data/proofspec/prove_steps/wordcount/output"
 
 testProofSingleSpec :: Text -> Text -> Expectation
 testProofSingleSpec input output =

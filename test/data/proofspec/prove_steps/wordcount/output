@@ -1,0 +1,40 @@
+Require Import Coq.Lists.List.
+Import ListNotations.
+Require Import Determinism Misc Notations Preservation Rules Setoid_Equivalence Step Substitutivity Term Typing Util.
+Theorem equivalent :
+  forall arg1,
+    empty_ctx |-- arg1 \in (TList TInt) ->
+    (equivalent
+       (tfold
+          (tabs ((TList (TInt :*: TInt)) :*: TInt)
+                (tcase
+                   (tread_at_key (tfst (tvar 0)) (tsnd (tvar 0)))
+                   (twrite_at_key (tfst (tvar 1)) (tsnd (tvar 1)) (tint 1))
+                   (twrite_at_key (tfst (tvar 1)) (tsnd (tvar 1)) ((tvar 0) + (tint 1)))))
+          (tlist [])
+          arg1)
+       (tmap
+          (tabs (TInt :*: (TList TInt))
+                (tpair
+                   (tfst (tvar 0))
+                   (tfold
+                      (tabs (TInt :*: TInt) ((tfst (tvar 0)) + (tsnd (tvar 0))))
+                      (tint 0)
+                      (tsnd (tvar 0)))))
+          (tgroup (tmap (tabs TInt (tpair (tvar 0) (tint 1))) arg1)))).
+  intros.
+  assert_step_to
+    (tfold
+       (tabs ((TList (TInt :*: TInt)) :*: TInt)
+             (twrite_at_key
+                (tfst (tvar 0))
+                (tsnd (tvar 0))
+                (tcase
+                   (tread_at_key (tfst (tvar 0)) (tsnd (tvar 0)))
+                   (tint 1)
+                   ((tvar 0) + (tint 1)))))
+       (tlist [])
+       arg1).
+    { admit. }
+  admit.
+Admitted.

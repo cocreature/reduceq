@@ -3,10 +3,13 @@
 module Reduceq.Spec.Util
   ( withParseResult
   , withTransformed
+  , withTransformedSteps
   , withType
+  , withStepsType
   , withTypedReduced
   , expectParseResult
   , parseError
+  , shouldBeFile
   , withTestsFromFile
   ) where
 
@@ -16,6 +19,7 @@ import qualified Control.Foldl as Foldl
 import           Control.Lens
 import qualified Data.List.Split as List
 import qualified Data.Text as Text
+import qualified Data.Text.IO as Text
 import           Pipes
 import           Pipes.Group
 import qualified Pipes.Parse as Pipes
@@ -33,11 +37,17 @@ import           Reduceq.Transform
 parseError :: ErrInfo -> Expectation
 parseError = expectationFailure . toS . renderParseError
 
-withTransformed :: NonEmpty Imp.FunDecl -> (Coq.Expr -> Expectation) -> Expectation
-withTransformed decls cont =
-  case runTransformM (transformDecls decls) of
+withTransformed' :: (a -> TransformM b) -> a -> (b -> Expectation) -> Expectation
+withTransformed' f original cont =
+  case runTransformM (f original) of
     Left err -> expectationFailure (toS (showTransformError err))
     Right transformed -> cont transformed
+
+withTransformed :: NonEmpty Imp.FunDecl -> (Coq.Expr -> Expectation) -> Expectation
+withTransformed = withTransformed' transformDecls
+
+withTransformedSteps :: Imp.ProgramSteps Imp.Program -> (Coq.ProgramSteps Coq.Expr -> Expectation) -> Expectation
+withTransformedSteps = withTransformed' transformProgramSteps
 
 withParseResult :: (Show a, Eq a) => Parser a -> Text -> (a -> Expectation) -> Expectation
 withParseResult parser input cont =
@@ -48,6 +58,12 @@ withParseResult parser input cont =
 withType :: Coq.Expr -> (Coq.Ty -> Expectation) -> Expectation
 withType expr cont =
   case runInferM (inferType expr) of
+    Left err -> (expectationFailure . toS . Coq.displayCompact . showInferError) err
+    Right ty -> cont ty
+
+withStepsType :: Coq.ProgramSteps Coq.Expr -> (Coq.Ty -> Expectation) -> Expectation
+withStepsType expr cont =
+  case runInferM (inferStepsType expr) of
     Left err -> (expectationFailure . toS . Coq.displayCompact . showInferError) err
     Right ty -> cont ty
 
@@ -97,3 +113,8 @@ withTestsFromFile path nameNthTest createTest = do
     (\test i -> it ((toS . nameNthTest) i) (createTest test))
     tests
     [1 ..]
+
+shouldBeFile :: Text -> FilePath -> Expectation
+shouldBeFile actual file = do
+  expected <- liftIO (Text.readFile file)
+  actual `shouldBe` expected
