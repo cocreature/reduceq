@@ -32,13 +32,6 @@ pprintTy ty =
     TyFun cod dom -> pprintApp "TArrow" [pprintTy cod, pprintTy dom]
     TySum l r -> parens ("TSum" <+> pprintTy l <+> pprintTy r)
 
-pprintComp :: IntComp -> Doc a
-pprintComp comp =
-  case comp of
-    IEq -> "Eq"
-    ILt -> "Lt"
-    IGt -> "Gt"
-
 pprintApp :: Doc a -> [Doc a] -> Doc a
 pprintApp f xs = (parens . hang 2 . sep) (f : xs)
 
@@ -102,6 +95,7 @@ pprintExpr (Fold f i xs) =
 pprintExpr (Concat xss) = parens ("tconcat" <+> pprintExpr xss)
 pprintExpr (List xs) = parens ("tlist" <+> list (map pprintExpr xs))
 pprintExpr (Length xs) = parens ("tlength" <+> pprintExpr xs)
+pprintExpr (Range a b c) = parens ("trange" <+> (align . sep . map pprintExpr) [a,b,c])
 
 pprintTypingJudgement :: Text -> [ExternReference] -> Ty -> Doc a
 pprintTypingJudgement name externRefs ty =
@@ -253,7 +247,7 @@ pprintEquivalentTheorem name (ProgramSteps initial steps final) ty = do
         (\expr arg -> instantiate arg expr)
         e
         (zipWith
-           (\name ty -> ExternRef (ExternReference name ty))
+           (\name' ty' -> ExternRef (ExternReference name' ty'))
            argNames
            argTys)
     argTyAssumptions :: [Doc a]

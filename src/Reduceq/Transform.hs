@@ -30,6 +30,7 @@ data TransformError
   | ExpectedArgs Imp.VarId
                  !Int
                  !Int
+  | ExpectedLambda Imp.Expr
   deriving (Show, Eq, Ord)
 
 showTransformError :: TransformError -> Text
@@ -42,6 +43,8 @@ showTransformError (ExpectedArgs (Imp.VarId name) expected actual) =
   show name <> " expects " <> show expected <> " arguments but got " <>
   show actual <>
   "."
+showTransformError (ExpectedLambda e) =
+ "Expected lambda but got: " <> show e
 
 newtype TransformM a =
   TransformM (ExceptT TransformError (Reader VarContext) a)
@@ -273,6 +276,7 @@ transformExpr (Imp.Call (Imp.VarRef "reduceByKey") args) =
                      (Coq.Fst (Coq.Var (Coq.VarId 0)))
                      (Coq.Fold reducer' init' (Coq.Snd (Coq.Var (Coq.VarId 0)))))
             pure (Coq.Map mapper (Coq.Group xs'))
+        _ -> throwError (ExpectedLambda reducer)
     _ -> throwError (ExpectedArgs "reduceByKey" 3 (length args))
 transformExpr (Imp.Call (Imp.VarRef "map") args) =
   case args of
@@ -282,6 +286,7 @@ transformExpr (Imp.Call (Imp.VarRef "map") args) =
         Imp.Lambda [var] body -> do
           mapper' <- withBoundVar var (transformExpr body)
           pure (Coq.Map mapper' xs')
+        _ -> throwError (ExpectedLambda mapper)
     _ -> throwError (ExpectedArgs "map" 2 (length args))
 transformExpr (Imp.Call (Imp.VarRef "flatMap") args) =
   case args of
@@ -291,6 +296,7 @@ transformExpr (Imp.Call (Imp.VarRef "flatMap") args) =
         Imp.Lambda [var] body -> do
           mapper' <- withBoundVar var (transformExpr body)
           pure (Coq.Concat (Coq.Map mapper' xs'))
+        _ -> throwError (ExpectedLambda mapper)
     _ -> throwError (ExpectedArgs "flatMap" 2 (length args))
 transformExpr (Imp.Call (Imp.VarRef "length") args) =
   case args of
@@ -312,6 +318,7 @@ transformTy (Imp.TyFun args retTy) =
   foldr Coq.TyFun (transformTy retTy) (map transformTy args)
 transformTy (Imp.TyProd a b) = Coq.TyProd (transformTy a) (transformTy b)
 transformTy (Imp.TySum a b) = Coq.TySum (transformTy a) (transformTy b)
+transformTy Imp.TyUnit = Coq.TyUnit
 
 transformProgram :: Imp.Program -> TransformM Coq.Expr
 transformProgram (Imp.Program decls) = transformDecls decls

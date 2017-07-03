@@ -150,6 +150,12 @@ pprintExpr (Fold f i xs) = do
   (pure . parens . hang 3 . sep) ["fold", f', i', xs']
 pprintExpr (List xs) =
   list <$> mapM pprintExpr xs
+pprintExpr (Length xs) = (parens . ("length" <+>)) <$> pprintExpr xs
+pprintExpr (Range a b c) = do
+  a' <- pprintExpr a
+  b' <- pprintExpr b
+  c' <- pprintExpr c
+  pure (parens ("range" <+> a' <+> b' <+> c'))
 
 displayDoc :: Doc a -> Text
 displayDoc =
