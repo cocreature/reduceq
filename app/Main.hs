@@ -95,7 +95,7 @@ withTypedReducedInputFile path cont = do
       case runTransformM (transformDecls decls) of
         Left err -> hPutStrLn stderr (showTransformError err)
         Right transformed ->
-          let reduced = simplify transformed
+          let reduced = simplify (simplify transformed)
           in case runInferM (inferType reduced) of
                Left err -> hPutDoc stderr (showInferError err)
                Right ty -> cont reduced ty

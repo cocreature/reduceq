@@ -55,7 +55,8 @@ newtype TransformM a =
 withAnonVar :: Imp.TypedVar -> TransformM Coq.Expr -> TransformM Coq.Expr
 withAnonVar (Imp.TypedVar name ty) =
   local
-    (Map.insert name (Coq.Var (Coq.VarId 0), ty) . Map.map (first Coq.shiftVars))
+    (Map.insert name (Coq.Var (Coq.VarId 0) `Coq.Annotated` transformTy ty, ty) .
+     Map.map (first Coq.shiftVars))
 
 -- | 'withBoundVar' behaves like 'withAnonVar' but also wraps the
 -- expression in a lambda that binds the variable
@@ -126,7 +127,7 @@ collectAssgns stmts = do
   -- variables outside of the block so we don’t include it in the list
   -- of external assignments.
   let assgns = Set.fromList (toListOf (traverse . Imp.collectAssgnLocs) stmts)
-      decls = Set.fromList (toListOf (traverse . Imp._VarDecl . _1 . to Imp.varName) stmts)
+      decls = Set.fromList (toListOf (traverse . cosmos . Imp._VarDecl . _1 . to Imp.varName) stmts)
       assgns' = assgns Set.\\ decls
   (fmap Set.fromList . traverse transformAssgnLoc . toList) assgns'
 
@@ -291,9 +292,13 @@ transformExpr (Imp.Call (Imp.VarRef "flatMap") args) =
           mapper' <- withBoundVar var (transformExpr body)
           pure (Coq.Concat (Coq.Map mapper' xs'))
     _ -> throwError (ExpectedArgs "flatMap" 2 (length args))
+transformExpr (Imp.Call (Imp.VarRef "length") args) =
+  case args of
+    [xs] -> Coq.Length <$> transformExpr xs
+    _ -> throwError (ExpectedArgs "length" 1 (length args))
 transformExpr (Imp.Call fun args) =
-  foldr
-    (\arg f -> Coq.App <$> f <*> transformExpr arg)
+  foldl'
+    (\f arg -> Coq.App <$> f <*> transformExpr arg)
     (transformExpr fun)
     args
 transformExpr Imp.EmptyArray = pure (Coq.List [])

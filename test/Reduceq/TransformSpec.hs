@@ -100,7 +100,7 @@ reducedTransformTests =
       \  x : Int = h(1);\
       \  return g(x, 2, 3);\
       \}"
-    , "((((fun ▢ : Int. (fun ▢ : Int. (fun \9634 : Int. ((v2 + v1) + v0)))) 3) 2) ((fun ▢ : Int. v0) 1))")
+    , "((1 + 2) + 3)")
   , ( "extern fn f(x : Int) -> Int {}\
       \fn g(x : Int) -> Int {\
       \ return f(x);\

@@ -273,7 +273,7 @@ fundeclParser :: Parser FunDecl
 fundeclParser =
   (do extern <- isJust <$> optional (reserve varId "extern")
       reserve varId "fn"
-      name <- identifier
+      name <- identifier <?> "function name"
       args <- parens (tyVarParser `sepBy` reserve varOp ",")
       _ <- token (text "->")
       returnTy <- tyParser

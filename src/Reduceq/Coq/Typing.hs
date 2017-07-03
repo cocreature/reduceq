@@ -313,6 +313,16 @@ inferType (List xss) = do
   case tys of
     (t:ts) -> traverse_ (guardTyEqual t) ts *> pure (TyArr t)
     _ -> panic "Cannot infer type of empty list literal"
+inferType (Length xs) = do
+  ty <- inferType xs
+  case ty of
+    TyArr _ -> pure TyInt
+    _ -> throwError (ExpectedArr ty)
+inferType (Range a b c) = do
+  _ <- checkType a TyInt
+  _ <- checkType b TyInt
+  _ <- checkType c TyInt
+  pure (TyArr TyInt)
 
 inferStepsType :: ProgramSteps Expr -> InferM Ty
 inferStepsType (ProgramSteps initial steps final) = do

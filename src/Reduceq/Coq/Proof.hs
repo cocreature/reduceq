@@ -60,8 +60,9 @@ pprintExpr (Fst x) = parens ("tfst" <+> pprintExpr x)
 pprintExpr (Snd x) = parens ("tsnd" <+> pprintExpr x)
 pprintExpr (Pair x y) = pprintApp "tpair" [pprintExpr x, pprintExpr y]
 pprintExpr (If cond ifTrue ifFalse) =
-  (parens . hang 3 . Pretty.group)
-    ("tif" <+> pprintExpr cond <+> pprintExpr ifTrue <+> pprintExpr ifFalse)
+  parens
+    ("tif" <+>
+     (align . sep) [pprintExpr cond, pprintExpr ifTrue, pprintExpr ifFalse])
 pprintExpr (IntBinop op x y) = parens (pprintExpr x <+> op' <+> pprintExpr y)
   where
     op' =
@@ -70,14 +71,20 @@ pprintExpr (IntBinop op x y) = parens (pprintExpr x <+> op' <+> pprintExpr y)
         ISub -> "-"
         IMul -> "*"
 pprintExpr (IntComp comp x y) =
-  parens ("tint_comp" <+> pprintComp comp <+> pprintExpr x <+> pprintExpr y)
-pprintExpr (Iter f x) = parens ("titer" <+> pprintExpr f <+> pprintExpr x)
+  parens (pprintExpr x <+> comp' <+> pprintExpr y)
+  where comp' = case comp of
+          IEq -> "="
+          ILt -> "<"
+          IGt -> ">"
+pprintExpr (Iter f x) = parens ("titer" <+> (align . sep) [pprintExpr f, pprintExpr x])
 pprintExpr (Inl x) =
   parens ("tinl" <+> pprintExpr x)
 pprintExpr (Inr x) =
   parens ("tinr" <+> pprintExpr x)
 pprintExpr (Set arr index val) =
-  parens ("twrite" <+> pprintExpr arr <+> pprintExpr index <+> pprintExpr val)
+  parens
+    ("twrite" <+>
+     (align . sep) [pprintExpr arr, pprintExpr index, pprintExpr val])
 pprintExpr (SetAtKey arr key val) =
   pprintApp "twrite_at_key" [pprintExpr arr, pprintExpr key, pprintExpr val]
 pprintExpr (Read arr index) =
@@ -94,6 +101,7 @@ pprintExpr (Fold f i xs) =
   pprintApp "tfold" [pprintExpr f, pprintExpr i, pprintExpr xs]
 pprintExpr (Concat xss) = parens ("tconcat" <+> pprintExpr xss)
 pprintExpr (List xs) = parens ("tlist" <+> list (map pprintExpr xs))
+pprintExpr (Length xs) = parens ("tlength" <+> pprintExpr xs)
 
 pprintTypingJudgement :: Text -> [ExternReference] -> Ty -> Doc a
 pprintTypingJudgement name externRefs ty =

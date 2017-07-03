@@ -12,6 +12,7 @@ module Reduceq.Coq.AST
   , instantiate
   , shiftVars
   , simplify
+  , closed
   , collectExternReferences
   ) where
 
@@ -97,6 +98,8 @@ data Expr
          Expr
          Expr
   | Concat Expr
+  | Length Expr
+  | Range Expr Expr Expr
   | List [Expr]
   deriving (Show, Eq, Ord, Data, Typeable)
 
@@ -129,28 +132,37 @@ substAt id substitute expr = go expr
       | id == id' = substitute
       | id' > id = Var (pred id')
       | otherwise = Var id'
-    go (Abs ty body) = Abs ty (substAt (succ id) substitute body)
+    go (Abs ty body) = Abs ty (substAt (succ id) (shiftVars substitute) body)
     go (Case c x y) =
       Case
         (go c)
-        (substAt (succ id) substitute x)
-        (substAt (succ id) substitute y)
+        (substAt (succ id) (shiftVars substitute) x)
+        (substAt (succ id) (shiftVars substitute) y)
     go e = over plate go e
 
 instantiate :: Expr -> Expr -> Expr
-instantiate substitute (unannotate -> Abs ty body) =
+instantiate substitute (unannotate -> Abs _ty body) =
   substAt (VarId 0) substitute body
 instantiate _ expr =
   panic ("Tried to instantiate something that isn’t a binder: " <> show expr)
 
 unannotate :: Expr -> Expr
-unannotate = transform $ \e ->
-  case e of
-    Annotated e' _ -> unannotate e'
-    _ -> e
+unannotate (Annotated e _) = unannotate e
+unannotate e = e
+
+closed :: Expr -> Bool
+closed expr = execState (closedUpTo (VarId 0) expr) True
+  where closedUpTo :: VarId -> Expr -> State Bool ()
+        closedUpTo id (Var id') = modify' (&& id > id')
+        closedUpTo id (Abs _ body) = closedUpTo (succ id) body
+        closedUpTo id (Case c x y) =
+          closedUpTo id c >>
+          closedUpTo (succ id) x >>
+          closedUpTo (succ id) y
+        closedUpTo id e = traverseOf_ plate (closedUpTo id) e
 
 countReferences :: VarId -> Expr -> Int
-countReferences id expr = execState (go id expr) 0
+countReferences varId expr = execState (go varId expr) 0
   where go :: VarId -> Expr -> State Int ()
         go id (Var id')
           | id == id' = modify' (+1)
@@ -164,13 +176,15 @@ countReferences id expr = execState (go id expr) 0
 
 simplify :: Expr -> Expr
 simplify =
-  transform $ \e ->
+  rewrite $ \e ->
     case e of
-      (App (Abs ty body) (unannotate -> lit@(IntLit _))) ->
-        substAt (VarId 0) lit body
-      (App (Abs ty body) (unannotate -> lit@(List _))) ->
-        substAt (VarId 0) lit body
-      (App (Abs ty (Var (VarId 0))) arg) -> arg `Annotated` ty
-      (App (Abs ty body) arg)
-        | countReferences (VarId 0) body <= 1 -> substAt (VarId 0) arg body
-      _ -> e
+      (App (unannotate -> Abs _ty body) (unannotate -> lit@(IntLit _))) ->
+        Just $ substAt (VarId 0) lit body
+      (App (unannotate -> Abs ty body) (unannotate -> lit@(List _))) ->
+        Just $ substAt (VarId 0) (lit `Annotated` ty) body
+      (App (unannotate -> Abs ty (Var (VarId 0))) arg) ->
+        Just (arg `Annotated` ty)
+      (App (unannotate -> Abs ty body) arg)
+        | countReferences (VarId 0) body <= 1 ->
+          Just $ substAt (VarId 0) (arg `Annotated` ty) body
+      _ -> Nothing
