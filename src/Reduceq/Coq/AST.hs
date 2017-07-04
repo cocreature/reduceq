@@ -131,7 +131,7 @@ liftVarsAbove m n expr = go expr
     go (Var (VarId index name))
       | index >= m = Var (VarId (index + n) name)
       | otherwise = Var (VarId index name)
-    go (Abs ty name body) = go (Abs ty name (liftVarsAbove (succ m) n body))
+    go (Abs ty name body) = Abs ty name (liftVarsAbove (succ m) n body)
     go (Case c x y) =
       Case (go c) (liftVarsAbove (succ m) n x) (liftVarsAbove (succ m) n y)
     go e = e & plate %~ go
