@@ -79,7 +79,7 @@ pprintExpr (IntLit i)
   | otherwise = (pure . parens . pretty) i
 pprintExpr (App f x) =
   parens . align . sep <$> sequence [pprintExpr f, pprintExpr x]
-pprintExpr (Abs ty body) =
+pprintExpr (Abs ty _name body) =
   withBoundVar $ \c ->
     parens . hang 2 . sep <$>
     sequence

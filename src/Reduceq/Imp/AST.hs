@@ -22,7 +22,7 @@ import Reduceq.Prelude
 import Control.Lens
 import Data.Data
 
-newtype VarId = VarId Text deriving (Show, Eq, Ord, IsString, Data)
+newtype VarId = VarId { getVarId :: Text } deriving (Show, Eq, Ord, IsString, Data)
 
 data Decl = FunDecl !FunDecl deriving (Show, Eq, Ord)
 

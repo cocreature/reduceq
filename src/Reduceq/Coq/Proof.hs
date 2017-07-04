@@ -1,3 +1,4 @@
+{-# LANGUAGE ViewPatterns #-}
 module Reduceq.Coq.Proof
   ( pprintExample
   , pprintProofObligation
@@ -15,6 +16,7 @@ import qualified Data.Map.Merge.Lazy as Map
 import           Data.Text.Prettyprint.Doc as Pretty
 import qualified Data.Text.Prettyprint.Doc.Internal as PrettyInternal
 
+import           Reduceq.Imp.AST (getVarId)
 import           Reduceq.Coq.AST
 
 pprintVar :: VarId -> Doc a
@@ -45,7 +47,7 @@ pprintExpr (IntLit i) =
   in parens ("tint" <+> lit)
 pprintExpr (App f x) =
   pprintApp "tapp" [pprintExpr f, pprintExpr x]
-pprintExpr (Abs ty body) =
+pprintExpr (Abs ty _name body) =
   parens ("tabs" <+> (align . sep) [pprintTy ty, pprintExpr body])
 pprintExpr (Case x ifL ifR) =
   pprintApp "tcase" [pprintExpr x, pprintExpr ifL, pprintExpr ifR]
@@ -253,9 +255,9 @@ pprintEquivalentTheorem name (ProgramSteps initial steps final) ty = do
     argTyAssumptions :: [Doc a]
     argTyAssumptions =
       zipWith
-        (\ty' i -> pprintTypingJudgement ("arg" <> show i) [] ty' <+> "->")
+        (\ty' name' -> pprintTypingJudgement name' [] ty' <+> "->")
         argTys
-        [1 :: Int ..]
+        argNames
     argTys :: [Ty]
     argTys =
       let argTys' (TyFun dom cod) = dom : argTys' cod
@@ -264,9 +266,13 @@ pprintEquivalentTheorem name (ProgramSteps initial steps final) ty = do
     args :: [Doc a]
     args = map pretty argNames
     argNames :: [Text]
-    argNames = map (\i -> "arg" <> show i) [1 .. numArgs]
-    numArgs :: Int
-    numArgs = length argTys
+    argNames =
+      let argNames' (unannotate -> Abs _ name' body) = name' : argNames' body
+          argNames' _ = []
+      in zipWith
+           (\def varId -> fromMaybe def (fmap getVarId varId))
+           (map (\i -> "arg" <> show i) [1 :: Int ..])
+           (argNames' initial)
 
 pprintEquivalence :: Text -> (Expr, Ty) -> (Expr, Ty) -> Either PprintError (Doc a)
 pprintEquivalence _ (_, ty) (_, ty')

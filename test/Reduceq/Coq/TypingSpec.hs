@@ -18,12 +18,14 @@ mkVar id = Var (VarId id Nothing)
 typeInferenceTests :: [(Expr, Either InferError Ty)]
 typeInferenceTests =
   [ (IntLit 1, Right TyInt)
-  , (Abs TyInt (mkVar 0), Right (TyFun TyInt TyInt))
+  , (Abs TyInt Nothing (mkVar 0), Right (TyFun TyInt TyInt))
   , ( Abs
         TyInt
+        Nothing
         (Iter
            (Abs
               TyInt
+              Nothing
               (If
                  (IntComp ILt (mkVar 0) (mkVar 1))
                  (Inr (IntBinop IAdd (mkVar 0) (IntLit 1)))
@@ -32,9 +34,9 @@ typeInferenceTests =
     , Right (TyFun TyInt TyInt))
   , (Fst (IntLit 1), Left (ExpectedProd TyInt))
   , (Inl (IntLit 1), Left (AmbigousType "Cannot infer the type of `inl`."))
-  , ( Abs (TyArr TyInt) (Set (mkVar 0) (IntLit 0) (IntLit 0))
+  , ( Abs (TyArr TyInt) Nothing (Set (mkVar 0) (IntLit 0) (IntLit 0))
     , Right (TyFun (TyArr TyInt) (TyArr TyInt)))
-  , ( Abs (TyArr TyInt) (Read (mkVar 0) (IntLit 0))
+  , ( Abs (TyArr TyInt) Nothing (Read (mkVar 0) (IntLit 0))
     , Right (TyFun (TyArr TyInt) TyInt))
   ]
 

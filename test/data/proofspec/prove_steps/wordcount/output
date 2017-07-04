@@ -2,8 +2,8 @@ Require Import Coq.Lists.List.
 Import ListNotations.
 Require Import Determinism Misc Notations Preservation Rules Setoid_Equivalence Step Substitutivity Term Typing Util.
 Theorem equivalent :
-  forall arg1,
-    empty_ctx |-- arg1 \in (TList TInt) ->
+  forall words,
+    empty_ctx |-- words \in (TList TInt) ->
     (equivalent
        (tfold
           (tabs ((TList (TInt :*: TInt)) :*: TInt)
@@ -12,7 +12,7 @@ Theorem equivalent :
                    (twrite_at_key (tfst (tvar 1)) (tsnd (tvar 1)) (tint 1))
                    (twrite_at_key (tfst (tvar 1)) (tsnd (tvar 1)) ((tvar 0) + (tint 1)))))
           (tlist [])
-          arg1)
+          words)
        (tmap
           (tabs (TInt :*: (TList TInt))
                 (tpair
@@ -21,7 +21,7 @@ Theorem equivalent :
                       (tabs (TInt :*: TInt) ((tfst (tvar 0)) + (tsnd (tvar 0))))
                       (tint 0)
                       (tsnd (tvar 0)))))
-          (tgroup (tmap (tabs TInt (tpair (tvar 0) (tint 1))) arg1)))).
+          (tgroup (tmap (tabs TInt (tpair (tvar 0) (tint 1))) words)))).
   intros.
   assert_step_to
     (tfold
@@ -34,7 +34,7 @@ Theorem equivalent :
                    (tint 1)
                    ((tvar 0) + (tint 1)))))
        (tlist [])
-       arg1).
+       words).
     { admit. }
   admit.
 Admitted.

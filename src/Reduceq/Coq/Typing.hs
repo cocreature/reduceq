@@ -99,7 +99,7 @@ checkType (App f x) ty = do
   argTy <- inferType x
   _ <- checkType f (TyFun argTy ty)
   pure ty
-checkType (Abs codTy body) ty =
+checkType (Abs codTy _name body) ty =
   case ty of
     TyFun codTy' domTy -> do
       _ <- guardTyEqual codTy' codTy
@@ -215,7 +215,7 @@ inferType (App f x) = do
     TyFun cod dom ->
       checkType x cod *> pure dom
     ty -> throwError (ExpectedFunction ty)
-inferType (Abs codTy body) = do
+inferType (Abs codTy _name body) = do
   domTy <- withBoundVar codTy (inferType body)
   pure (TyFun codTy domTy)
 inferType (Case x ifL ifR) = do

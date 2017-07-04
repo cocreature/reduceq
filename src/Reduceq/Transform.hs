@@ -70,11 +70,11 @@ withAnonVar (Imp.TypedVar name ty) =
 -- | 'withBoundVar' behaves like 'withAnonVar' but also wraps the
 -- expression in a lambda that binds the variable
 withBoundVar :: Imp.TypedVar -> TransformM Coq.Expr -> TransformM Coq.Expr
-withBoundVar var@(Imp.TypedVar _name ty) =
-  withAnonVar var . fmap (Coq.Abs (transformTy ty))
+withBoundVar var@(Imp.TypedVar name ty) =
+  withAnonVar var . fmap (Coq.Abs (transformTy ty) (Just name))
 
 withAnonBoundVar :: Coq.Ty -> TransformM Coq.Expr -> TransformM Coq.Expr
-withAnonBoundVar ty = local (Map.map (first Coq.shiftVars)) . fmap (Coq.Abs ty)
+withAnonBoundVar ty = local (Map.map (first Coq.shiftVars)) . fmap (Coq.Abs ty Nothing)
 
 withBoundVarProd :: (Imp.TypedVar, Imp.TypedVar) -> TransformM Coq.Expr -> TransformM Coq.Expr
 withBoundVarProd (Imp.TypedVar fstName fstTy, Imp.TypedVar sndName sndTy) =
@@ -86,7 +86,7 @@ withBoundVarProd (Imp.TypedVar fstName fstTy, Imp.TypedVar sndName sndTy) =
      Map.insert
        sndName
        (Coq.Snd (Coq.Var (Coq.VarId 0 (asNameHint sndName))), sndTy)) .
-  fmap (Coq.Abs (Coq.TyProd (transformTy fstTy) (transformTy sndTy)))
+  fmap (Coq.Abs (Coq.TyProd (transformTy fstTy) (transformTy sndTy)) Nothing)
 
 varRef :: Imp.VarId -> TransformM Coq.Expr
 varRef id = do
@@ -184,12 +184,12 @@ withVarsAsTuple vars =
   local
     (Map.union (refAsTuple (Coq.Var (Coq.VarId 0 nameHint)) vars) .
      Map.map (first Coq.shiftVars)) .
-  fmap (Coq.Abs (tupleType (map Imp.varType vars)))
+  fmap (Coq.Abs (tupleType (map Imp.varType vars)) name)
   where
-    nameHint =
+    (nameHint, name) =
       case vars of
-        [Imp.TypedVar name _] -> asNameHint name
-        _ -> Nothing
+        [Imp.TypedVar name' _] -> (asNameHint name', Just name')
+        _ -> (Nothing, Nothing)
 
 -- Used in folds. The first expression represents the name of the
 -- bound array element.
@@ -198,12 +198,12 @@ withAccVarsAsTuple (Imp.TypedVar elName elTy) vars =
   local
     (Map.insert
        elName
-       (Coq.Snd (Coq.Var (Coq.VarId 0 (asNameHint elName))), elTy) .
+       (Coq.Snd (Coq.Var (Coq.VarId 0 Nothing)), elTy) .
      Map.union
-       (refAsTuple (Coq.Fst (Coq.Var (Coq.VarId 0 (asNameHint elName)))) vars) .
+       (refAsTuple (Coq.Fst (Coq.Var (Coq.VarId 0 Nothing))) vars) .
      Map.map (first Coq.shiftVars)) .
   fmap
-    (Coq.Abs (Coq.TyProd (tupleType (map Imp.varType vars)) (transformTy elTy)))
+    (Coq.Abs (Coq.TyProd (tupleType (map Imp.varType vars)) (transformTy elTy)) Nothing)
 
 transformStmts :: [Imp.Stmt] -> TransformM Coq.Expr
 transformStmts [] = throwError MissingReturnStmt

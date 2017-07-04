@@ -14,15 +14,17 @@ module Reduceq.Coq.AST
   , simplify
   , closed
   , collectExternReferences
+  , unannotate
   ) where
 
-import Reduceq.Prelude
+import           Reduceq.Prelude
 
-import Control.Lens hiding ((&), index, op, List)
-import Control.Monad.State.Strict
-import Data.Data
+import           Control.Lens hiding ((&), index, op, List)
+import           Control.Monad.State.Strict
+import           Data.Data
 
-import Reduceq.Imp (IntBinop(..), IntComp(..), ProgramSteps(..))
+import qualified Reduceq.Imp as Imp
+import           Reduceq.Imp (IntBinop(..), IntComp(..), ProgramSteps(..))
 
 -- | DeBruijn indices
 data VarId = VarId
@@ -66,6 +68,7 @@ data Expr
   | App Expr
         Expr
   | Abs Ty
+        (Maybe Imp.VarId) -- ^ Name hint
         Expr
   | Fst Expr
   | Snd Expr
@@ -128,7 +131,7 @@ liftVarsAbove m n expr = go expr
     go (Var (VarId index name))
       | index >= m = Var (VarId (index + n) name)
       | otherwise = Var (VarId index name)
-    go (Abs ty body) = go (Abs ty (liftVarsAbove (succ m) n body))
+    go (Abs ty name body) = go (Abs ty name (liftVarsAbove (succ m) n body))
     go (Case c x y) =
       Case (go c) (liftVarsAbove (succ m) n x) (liftVarsAbove (succ m) n y)
     go e = e & plate %~ go
@@ -143,7 +146,7 @@ substAt id substitute expr = go expr
       | id == id' = substitute
       | id' > id = Var (pred id')
       | otherwise = Var id'
-    go (Abs ty body) = Abs ty (substAt (succ id) (shiftVars substitute) body)
+    go (Abs ty name body) = Abs ty name (substAt (succ id) (shiftVars substitute) body)
     go (Case c x y) =
       Case
         (go c)
@@ -152,7 +155,7 @@ substAt id substitute expr = go expr
     go e = over plate go e
 
 instantiate :: Expr -> Expr -> Expr
-instantiate substitute (unannotate -> Abs _ty body) =
+instantiate substitute (unannotate -> Abs _ty _name body) =
   substAt (VarId 0 Nothing) substitute body
 instantiate _ expr =
   panic ("Tried to instantiate something that isn’t a binder: " <> show expr)
@@ -165,7 +168,7 @@ closed :: Expr -> Bool
 closed expr = execState (closedUpTo (VarId 0 Nothing) expr) True
   where closedUpTo :: VarId -> Expr -> State Bool ()
         closedUpTo id (Var id') = modify' (&& id > id')
-        closedUpTo id (Abs _ body) = closedUpTo (succ id) body
+        closedUpTo id (Abs _ _ body) = closedUpTo (succ id) body
         closedUpTo id (Case c x y) =
           closedUpTo id c >>
           closedUpTo (succ id) x >>
@@ -178,7 +181,7 @@ countReferences varId expr = execState (go varId expr) 0
         go id (Var id')
           | id == id' = modify' (+1)
           | otherwise = pure ()
-        go id (Abs _ body) = go (succ id) body
+        go id (Abs _ _ body) = go (succ id) body
         go id (Case c x y) =
           go id c >>
           go (succ id) x >>
@@ -189,15 +192,15 @@ simplify :: Expr -> Expr
 simplify =
   rewrite $ \e ->
     case e of
-      (App (unannotate -> Abs _ty body) (unannotate -> lit@(IntLit _))) ->
+      (App (unannotate -> Abs _ty _name body) (unannotate -> lit@(IntLit _))) ->
         Just $ substAt (VarId 0 Nothing) lit body
-      (App (unannotate -> Abs ty body) (unannotate -> lit@(List _))) ->
+      (App (unannotate -> Abs ty _name body) (unannotate -> lit@(List _))) ->
         Just $ substAt (VarId 0 Nothing) (lit `Annotated` ty) body
-      (App (unannotate -> Abs ty (Var (VarId 0 _))) arg) ->
+      (App (unannotate -> Abs ty _name (Var (VarId 0 _))) arg) ->
         Just (arg `Annotated` ty)
-      (App (unannotate -> Abs ty body) (unannotate -> ref@(ExternRef (ExternReference _ ty')))) ->
+      (App (unannotate -> Abs ty _name body) (unannotate -> ref@(ExternRef (ExternReference _ ty')))) ->
         assert (ty == ty') $ Just $ substAt (VarId 0 Nothing) ref body
-      (App (unannotate -> Abs ty body) arg)
+      (App (unannotate -> Abs ty _name body) arg)
         | countReferences (VarId 0 Nothing) body <= 1 ->
           Just $ substAt (VarId 0 Nothing) (arg `Annotated` ty) body
       _ -> Nothing
