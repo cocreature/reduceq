@@ -18,7 +18,7 @@ import qualified Data.Text.Prettyprint.Doc.Internal as PrettyInternal
 import           Reduceq.Coq.AST
 
 pprintVar :: VarId -> Doc a
-pprintVar (VarId index) = parens ("tvar" <+> pretty index)
+pprintVar (VarId index _) = parens ("tvar" <+> pretty index)
 
 pprintTy :: Ty -> Doc a
 pprintTy ty =

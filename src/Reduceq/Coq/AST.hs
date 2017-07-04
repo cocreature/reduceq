@@ -25,9 +25,20 @@ import Data.Data
 import Reduceq.Imp (IntBinop(..), IntComp(..), ProgramSteps(..))
 
 -- | DeBruijn indices
-newtype VarId =
-  VarId Word
-  deriving (Show, Eq, Ord, Enum, Data, Typeable)
+data VarId = VarId
+  { varId :: Word
+  , nameHint :: !(Maybe Text)
+  } deriving (Show, Data, Typeable)
+
+instance Eq VarId where
+  (==) = (==) `on` varId
+
+instance Ord VarId where
+  compare = compare `on` varId
+
+instance Enum VarId where
+  toEnum i = VarId (toEnum i) Nothing
+  fromEnum (VarId id _) = fromEnum id
 
 data Ty
   = TyInt
@@ -114,9 +125,9 @@ instance Plated Expr
 liftVarsAbove :: Word -> Word -> Expr -> Expr
 liftVarsAbove m n expr = go expr
   where
-    go (Var (VarId index))
-      | index >= m = Var (VarId (index + n))
-      | otherwise = Var (VarId index)
+    go (Var (VarId index name))
+      | index >= m = Var (VarId (index + n) name)
+      | otherwise = Var (VarId index name)
     go (Abs ty body) = go (Abs ty (liftVarsAbove (succ m) n body))
     go (Case c x y) =
       Case (go c) (liftVarsAbove (succ m) n x) (liftVarsAbove (succ m) n y)
@@ -142,7 +153,7 @@ substAt id substitute expr = go expr
 
 instantiate :: Expr -> Expr -> Expr
 instantiate substitute (unannotate -> Abs _ty body) =
-  substAt (VarId 0) substitute body
+  substAt (VarId 0 Nothing) substitute body
 instantiate _ expr =
   panic ("Tried to instantiate something that isn’t a binder: " <> show expr)
 
@@ -151,7 +162,7 @@ unannotate (Annotated e _) = unannotate e
 unannotate e = e
 
 closed :: Expr -> Bool
-closed expr = execState (closedUpTo (VarId 0) expr) True
+closed expr = execState (closedUpTo (VarId 0 Nothing) expr) True
   where closedUpTo :: VarId -> Expr -> State Bool ()
         closedUpTo id (Var id') = modify' (&& id > id')
         closedUpTo id (Abs _ body) = closedUpTo (succ id) body
@@ -179,12 +190,14 @@ simplify =
   rewrite $ \e ->
     case e of
       (App (unannotate -> Abs _ty body) (unannotate -> lit@(IntLit _))) ->
-        Just $ substAt (VarId 0) lit body
+        Just $ substAt (VarId 0 Nothing) lit body
       (App (unannotate -> Abs ty body) (unannotate -> lit@(List _))) ->
-        Just $ substAt (VarId 0) (lit `Annotated` ty) body
-      (App (unannotate -> Abs ty (Var (VarId 0))) arg) ->
+        Just $ substAt (VarId 0 Nothing) (lit `Annotated` ty) body
+      (App (unannotate -> Abs ty (Var (VarId 0 _))) arg) ->
         Just (arg `Annotated` ty)
+      (App (unannotate -> Abs ty body) (unannotate -> ref@(ExternRef (ExternReference _ ty')))) ->
+        assert (ty == ty') $ Just $ substAt (VarId 0 Nothing) ref body
       (App (unannotate -> Abs ty body) arg)
-        | countReferences (VarId 0) body <= 1 ->
-          Just $ substAt (VarId 0) (arg `Annotated` ty) body
+        | countReferences (VarId 0 Nothing) body <= 1 ->
+          Just $ substAt (VarId 0 Nothing) (arg `Annotated` ty) body
       _ -> Nothing

@@ -55,10 +55,16 @@ newtype TransformM a =
            , MonadError TransformError
            )
 
+asNameHint :: Imp.VarId -> Maybe Text
+asNameHint (Imp.VarId name) = Just name
+
 withAnonVar :: Imp.TypedVar -> TransformM Coq.Expr -> TransformM Coq.Expr
 withAnonVar (Imp.TypedVar name ty) =
   local
-    (Map.insert name (Coq.Var (Coq.VarId 0) `Coq.Annotated` transformTy ty, ty) .
+    (Map.insert
+       name
+       ( Coq.Var (Coq.VarId 0 (asNameHint name)) `Coq.Annotated` transformTy ty
+       , ty) .
      Map.map (first Coq.shiftVars))
 
 -- | 'withBoundVar' behaves like 'withAnonVar' but also wraps the
@@ -74,8 +80,12 @@ withBoundVarProd :: (Imp.TypedVar, Imp.TypedVar) -> TransformM Coq.Expr -> Trans
 withBoundVarProd (Imp.TypedVar fstName fstTy, Imp.TypedVar sndName sndTy) =
   assert (fstName /= sndName) $
   local
-    (Map.insert fstName (Coq.Fst (Coq.Var (Coq.VarId 0)), fstTy) .
-     Map.insert sndName (Coq.Snd (Coq.Var (Coq.VarId 0)), sndTy)) .
+    (Map.insert
+       fstName
+       (Coq.Fst (Coq.Var (Coq.VarId 0 (asNameHint fstName))), fstTy) .
+     Map.insert
+       sndName
+       (Coq.Snd (Coq.Var (Coq.VarId 0 (asNameHint sndName))), sndTy)) .
   fmap (Coq.Abs (Coq.TyProd (transformTy fstTy) (transformTy sndTy)))
 
 varRef :: Imp.VarId -> TransformM Coq.Expr
@@ -171,16 +181,26 @@ withVarsAsTuple :: [Imp.TypedVar]
                 -> TransformM Coq.Expr
                 -> TransformM Coq.Expr
 withVarsAsTuple vars =
-  local (Map.union (refAsTuple (Coq.Var (Coq.VarId 0)) vars) . Map.map (first Coq.shiftVars)) .
+  local
+    (Map.union (refAsTuple (Coq.Var (Coq.VarId 0 nameHint)) vars) .
+     Map.map (first Coq.shiftVars)) .
   fmap (Coq.Abs (tupleType (map Imp.varType vars)))
+  where
+    nameHint =
+      case vars of
+        [Imp.TypedVar name _] -> asNameHint name
+        _ -> Nothing
 
 -- Used in folds. The first expression represents the name of the
 -- bound array element.
 withAccVarsAsTuple :: Imp.TypedVar -> [Imp.TypedVar] -> TransformM Coq.Expr -> TransformM Coq.Expr
 withAccVarsAsTuple (Imp.TypedVar elName elTy) vars =
   local
-    (Map.insert elName (Coq.Snd (Coq.Var (Coq.VarId 0)), elTy) .
-     Map.union (refAsTuple (Coq.Fst (Coq.Var (Coq.VarId 0))) vars) .
+    (Map.insert
+       elName
+       (Coq.Snd (Coq.Var (Coq.VarId 0 (asNameHint elName))), elTy) .
+     Map.union
+       (refAsTuple (Coq.Fst (Coq.Var (Coq.VarId 0 (asNameHint elName)))) vars) .
      Map.map (first Coq.shiftVars)) .
   fmap
     (Coq.Abs (Coq.TyProd (tupleType (map Imp.varType vars)) (transformTy elTy)))
@@ -262,7 +282,7 @@ transformExpr (Imp.Call (Imp.VarRef "reduceByKey") args) =
     [reducer, init, xs] -> do
       xs' <- transformExpr xs
       case reducer of
-        Imp.Lambda [varA@(Imp.TypedVar _ tyVal), varB@(Imp.TypedVar _ tyVal')] body ->
+        Imp.Lambda [varA@(Imp.TypedVar name tyVal), varB@(Imp.TypedVar _ tyVal')] body ->
           assert (tyVal == tyVal') $ do
             let tyVal'' = transformTy tyVal
             let keyTy = Coq.TyInt -- TODO figure out the correct type
@@ -273,8 +293,8 @@ transformExpr (Imp.Call (Imp.VarRef "reduceByKey") args) =
                 init' <- transformExpr init
                 pure
                   (Coq.Pair
-                     (Coq.Fst (Coq.Var (Coq.VarId 0)))
-                     (Coq.Fold reducer' init' (Coq.Snd (Coq.Var (Coq.VarId 0)))))
+                     (Coq.Fst (Coq.Var (Coq.VarId 0 (asNameHint name))))
+                     (Coq.Fold reducer' init' (Coq.Snd (Coq.Var (Coq.VarId 0 (Just "reducer"))))))
             pure (Coq.Map mapper (Coq.Group xs'))
         _ -> throwError (ExpectedLambda reducer)
     _ -> throwError (ExpectedArgs "reduceByKey" 3 (length args))

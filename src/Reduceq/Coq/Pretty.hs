@@ -39,10 +39,10 @@ withBoundVar :: (Color -> PprintM a) -> PprintM a
 withBoundVar x = do
   (c:cs) <- get
   put cs
-  local (Map.insert (VarId 0) c . shiftVarMap) (x c)
+  local (Map.insert (VarId 0 Nothing) c . shiftVarMap) (x c)
 
 coloredVar :: VarId -> PprintM (Doc AnsiStyle)
-coloredVar id@(VarId index) = do
+coloredVar id@(VarId index _) = do
   c <- asks (Map.lookup id)
   case c of
     Nothing -- It is possible that there are free variables in an expression

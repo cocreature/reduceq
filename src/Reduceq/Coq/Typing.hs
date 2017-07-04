@@ -68,7 +68,7 @@ shiftVarMap :: VarContext -> VarContext
 shiftVarMap = Map.mapKeys succ
 
 withBoundVar :: Ty -> InferM a -> InferM a
-withBoundVar ty = local (Map.insert (VarId 0) ty . shiftVarMap)
+withBoundVar ty = local (Map.insert (VarId 0 Nothing) ty . shiftVarMap)
 
 guardTyEqualIn :: Expr -> Ty -> Ty -> InferM Ty
 guardTyEqualIn e ty1 ty2 =

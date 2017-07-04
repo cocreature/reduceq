@@ -13,7 +13,7 @@ import Reduceq.Imp.Parser
 import Reduceq.Spec.Util
 
 mkVar :: Word -> Expr
-mkVar = Var . VarId
+mkVar id = Var (VarId id Nothing)
 
 typeInferenceTests :: [(Expr, Either InferError Ty)]
 typeInferenceTests =
