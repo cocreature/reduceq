@@ -154,11 +154,11 @@ proveStepsCommand ProveStepsOptions {optInputFile, optOutputFile} = do
     Success steps -> do
       case runTransformM (transformProgramSteps steps) of
         Left err -> hPutStrLn stderr (showTransformError err)
-        Right steps ->
-          case runInferM (inferStepsType steps) of
+        Right transformedSteps ->
+          case runInferM (inferStepsType transformedSteps) of
             Left err -> hPutDoc stderr (showInferError err)
             Right ty ->
-              case pprintProofStepsObligation (simplify <$> steps) ty of
+              case pprintProofStepsObligation (simplify <$> transformedSteps) ty of
                 Left err -> hPutStrLn stderr (showPprintError err)
                 Right doc ->
                   let output = Pretty.displayDoc doc
