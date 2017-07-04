@@ -13,6 +13,7 @@ import           Reduceq.Prelude
 
 import qualified Data.Map as Map
 import qualified Data.Map.Merge.Lazy as Map
+import qualified Data.Set as Set
 import           Data.Text.Prettyprint.Doc as Pretty
 import qualified Data.Text.Prettyprint.Doc.Internal as PrettyInternal
 
@@ -45,6 +46,8 @@ pprintExpr (IntLit i) =
         | i >= 0 = pretty i
         | otherwise = parens (pretty i)
   in parens ("tint" <+> lit)
+pprintExpr (App (App f x) y) =
+  pprintApp "tapp2" [pprintExpr f, pprintExpr x, pprintExpr y]
 pprintExpr (App f x) =
   pprintApp "tapp" [pprintExpr f, pprintExpr x]
 pprintExpr (Abs ty _name body) =
@@ -99,15 +102,15 @@ pprintExpr (List xs) = parens ("tlist" <+> list (map pprintExpr xs))
 pprintExpr (Length xs) = parens ("tlength" <+> pprintExpr xs)
 pprintExpr (Range a b c) = parens ("trange" <+> (align . sep . map pprintExpr) [a,b,c])
 
-pprintTypingJudgement :: Text -> [ExternReference] -> Ty -> Doc a
-pprintTypingJudgement name externRefs ty =
+pprintTypingJudgment :: Text -> [ExternReference] -> Ty -> Doc a
+pprintTypingJudgment name externRefs ty =
   "empty_ctx |--" <+> pretty name <> refParams <+> "\\in" <+> pprintTy ty
   where
     refParams = hsep' (map (pretty . refName) externRefs)
 
 pprintExternRefTyAssm :: ExternReference -> Doc a
 pprintExternRefTyAssm (ExternReference name ty) =
-  pprintTypingJudgement name [] ty <+> "->"
+  pprintTypingJudgment name [] ty <+> "->"
 
 coqForall :: Doc a
 coqForall = PrettyInternal.Text 1 "forall"
@@ -129,7 +132,7 @@ pprintTypingLemma name expr ty = vsep [lemmaIntro, indent 2 body, proof]
     body =
       forallExtern
         externRefs
-        (vsep (assumptions ++ [pprintTypingJudgement name externRefs ty <> "."]))
+        (vsep (assumptions ++ [pprintTypingJudgment name externRefs ty <> "."]))
     externRefs = collectExternReferences expr
 
 hsep' :: [Doc a] -> Doc a
@@ -255,7 +258,7 @@ pprintEquivalentTheorem name (ProgramSteps initial steps final) ty = do
     argTyAssumptions :: [Doc a]
     argTyAssumptions =
       zipWith
-        (\ty' name' -> pprintTypingJudgement name' [] ty' <+> "->")
+        (\ty' name' -> pprintTypingJudgment name' [] ty' <+> "->")
         argTys
         argNames
     argTys :: [Ty]
@@ -312,7 +315,7 @@ pprintEquivalence name (imperative, ty) (mapreduce, _) = do
     argTyAssumptions :: [Doc a]
     argTyAssumptions =
       zipWith
-        (\ty' i -> pprintTypingJudgement ("arg" <> show i) [] ty' <+> "->")
+        (\ty' i -> pprintTypingJudgment ("arg" <> show i) [] ty' <+> "->")
         argTys
         [1 :: Int ..]
     argTys :: [Ty]
@@ -346,7 +349,24 @@ pprintProofObligation (imperative, imperativeTy) (mapreduce, mapreduceTy) = do
         , mempty
         ]))
 
+
+nub :: Ord a => [a] -> [a]
+nub = Set.toList . Set.fromList
+
+pprintExternRefs :: ProgramSteps Expr -> Either PprintError [Doc a]
+pprintExternRefs steps =
+  let refs = nub (collectExternReferences =<< (toList steps))
+      pprintExternRef (ExternReference name ty) =
+        [ "Variable" <+> pretty name <+> colon <+> "term" <> dot
+        , (hang 2 . sep)
+            [ "Variable" <+> pretty name <> "_ty" <+> colon
+            , pprintTypingJudgment name [] ty <> dot
+            ]
+        ]
+  in pure (pprintExternRef =<< refs)
+
 pprintProofStepsObligation :: ProgramSteps Expr -> Ty -> Either PprintError (Doc a)
 pprintProofStepsObligation steps ty = do
+  externRefs <- pprintExternRefs steps
   equivalent <- pprintEquivalentTheorem "equivalent" steps ty
-  pure (vsep (coqImports ++ [equivalent]))
+  pure (vsep (coqImports ++ ["", "Section proof.", ""] ++ externRefs ++ ["", equivalent, "End proof."]))
