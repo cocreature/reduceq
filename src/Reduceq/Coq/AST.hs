@@ -68,7 +68,7 @@ data Expr
   | App Expr
         Expr
   | Abs Ty
-        (Maybe Imp.VarId) -- ^ Name hint
+        (Maybe Imp.VarId) -- Name hint
         Expr
   | Fst Expr
   | Snd Expr
