@@ -294,7 +294,12 @@ transformExpr (Imp.Call (Imp.VarRef "reduceByKey") args) =
                 pure
                   (Coq.Pair
                      (Coq.Fst (Coq.Var (Coq.VarId 0 (asNameHint name))))
-                     (Coq.Fold reducer' init' (Coq.Snd (Coq.Var (Coq.VarId 0 (Just "reducer"))))))
+                     (Coq.Fold
+-- We are moving this below the binder passed to map so we need to
+-- lift by 1 except for the variable bound in the map itself.
+                        (Coq.liftVarsAbove 1 1 reducer')
+                        init'
+                        (Coq.Snd (Coq.Var (Coq.VarId 0 (Just "reducer"))))))
             pure (Coq.Map mapper (Coq.Group xs'))
         _ -> throwError (ExpectedLambda reducer)
     _ -> throwError (ExpectedArgs "reduceByKey" 3 (length args))
