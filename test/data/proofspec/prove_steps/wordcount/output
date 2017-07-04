@@ -1,6 +1,10 @@
 Require Import Coq.Lists.List.
 Import ListNotations.
 Require Import Determinism Misc Notations Preservation Rules Setoid_Equivalence Step Substitutivity Term Typing Util.
+
+Section proof.
+
+
 Theorem equivalent :
   forall words,
     empty_ctx |-- words \in (TList TInt) ->
@@ -38,3 +42,4 @@ Theorem equivalent :
     { admit. }
   admit.
 Admitted.
+End proof.
