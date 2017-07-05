@@ -121,4 +121,10 @@ reducedTransformTests =
       \  return map;\
       \}"
     , "(fun ▢ : [Int]. (fold (fun ▢ : ([(Int * Int)] * Int). (set_at_key (fst v0) (snd v0) 1)) [] v0))")
+  , ("extern fn g(a : Int, b : Int) -> Int {}\
+     \fn f(l : [Int * Int]) -> Int * Int {\
+     \  return reduceByKey((a : Int) (b : Int) => g(a,b), 0, l);\
+     \}",
+      -- This tests that we correctly lift the reducer and the reference to g is still valid.
+     "(fun ▢ : [(Int * Int)]. (map (fun ▢ : (Int * [Int]). ((fst v0), (fold (fun ▢ : (Int * Int). ((g (fst v0)) (snd v0))) 0 (snd v0)))) (group v0)))")
   ]
