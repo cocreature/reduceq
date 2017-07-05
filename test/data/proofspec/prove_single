@@ -18,7 +18,7 @@ fn f(x : Int) -> Int {
 Require Import Coq.Lists.List.
 Import ListNotations.
 Require Import Determinism Misc Notations Preservation Rules Setoid_Equivalence Step Substitutivity Term Typing Util.
-Definition example g := (tabs TInt (tapp g (tvar 0))).
+Definition example g := (tabs TInt (tapp g.[ren (+1)] (tvar 0))).
 Lemma example_typing :
   forall g, empty_ctx |-- g \in (TArrow TInt TInt) ->
        empty_ctx |-- example g \in (TArrow TInt TInt).
@@ -46,7 +46,9 @@ Definition example splitWords :=
                        (tsnd (tvar 0)))))
            (tgroup (tmap
                       (tabs TInt (tpair (tvar 0) (tint 1)))
-                      (tconcat (tmap (tabs TInt (tapp splitWords (tvar 0))) (tvar 0))))))).
+                      (tconcat (tmap
+                                  (tabs TInt (tapp splitWords.[ren (+1)].[ren (+1)] (tvar 0)))
+                                  (tvar 0))))))).
 Lemma example_typing :
   forall splitWords, empty_ctx |-- splitWords \in (TArrow TInt (TList TInt)) ->
                 empty_ctx |-- example splitWords \in (TArrow
@@ -83,7 +85,7 @@ Definition example splitWords :=
                              (twrite_at_key (tfst (tvar 1)) (tsnd (tvar 1)) (tint 1))
                              (twrite_at_key (tfst (tvar 1)) (tsnd (tvar 1)) ((tvar 0) + (tint 1)))))
                     (tfst (tvar 0))
-                    (tapp splitWords (tsnd (tvar 0)))))
+                    (tapp splitWords.[ren (+1)].[ren (+1)] (tsnd (tvar 0)))))
            (tlist [])
            (tvar 0))).
 Lemma example_typing :

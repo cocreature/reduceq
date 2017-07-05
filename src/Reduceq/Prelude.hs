@@ -11,9 +11,9 @@ module Reduceq.Prelude
 
 import Control.Exception (assert)
 import Data.Foldable (foldr1)
-import Data.List.NonEmpty
+import Data.List.NonEmpty hiding ((!!))
 import Data.Text.IO (hPutStr, hPutStrLn)
-import Protolude hiding (Prefix, Infix, try, list, to, execState, State)
+import Protolude hiding (Prefix, Infix, from, try, list, to, execState, State)
 
 uncurry3 :: (a -> b -> c -> d) -> ((a, b, c) -> d)
 uncurry3 f = \(a, b, c) -> f a b c

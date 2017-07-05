@@ -156,6 +156,7 @@ pprintExpr (Range a b c) = do
   b' <- pprintExpr b
   c' <- pprintExpr c
   pure (parens ("range" <+> a' <+> b' <+> c'))
+pprintExpr (LiftN _ e) = pprintExpr e
 
 displayDoc :: Doc a -> Text
 displayDoc =

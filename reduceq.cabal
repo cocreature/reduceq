@@ -22,6 +22,7 @@ library
   hs-source-dirs:      src
   exposed-modules:     Reduceq.Coq
                        Reduceq.Coq.AST
+                       Reduceq.Coq.Diff
                        Reduceq.Coq.Pretty
                        Reduceq.Coq.Proof
                        Reduceq.Coq.Typing

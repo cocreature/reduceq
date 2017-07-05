@@ -157,8 +157,9 @@ proveStepsCommand ProveStepsOptions {optInputFile, optOutputFile} = do
         Right transformedSteps ->
           case runInferM (inferStepsType transformedSteps) of
             Left err -> hPutDoc stderr (showInferError err)
-            Right ty ->
-              case pprintProofStepsObligation (simplify <$> transformedSteps) ty of
+            Right ty -> do
+              let simplified = simplify <$> transformedSteps
+              case pprintProofStepsObligation simplified ty of
                 Left err -> hPutStrLn stderr (showPprintError err)
                 Right doc ->
                   let output = Pretty.displayDoc doc

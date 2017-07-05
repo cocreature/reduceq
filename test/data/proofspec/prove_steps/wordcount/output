@@ -39,7 +39,32 @@ Theorem equivalent :
                    ((tvar 0) + (tint 1)))))
        (tlist [])
        words).
-    { admit. }
+    { assert (HEq : equivalent (tfold
+                                  (tabs ((TList (TInt :*: TInt)) :*: TInt)
+                                        (tcase
+                                           (tread_at_key (tfst (tvar 0)) (tsnd (tvar 0)))
+                                           (twrite_at_key (tfst (tvar 1)) (tsnd (tvar 1)) (tint 1))
+                                           (twrite_at_key
+                                              (tfst (tvar 1))
+                                              (tsnd (tvar 1))
+                                              ((tvar 0) + (tint 1)))))
+                                  (tlist [])
+                                  words)
+                               (tfold
+                                  (tabs ((TList (TInt :*: TInt)) :*: TInt)
+                                        (twrite_at_key
+                                           (tfst (tvar 0))
+                                           (tsnd (tvar 0))
+                                           (tcase
+                                              (tread_at_key (tfst (tvar 0)) (tsnd (tvar 0)))
+                                              (tint 1)
+                                              ((tvar 0) + (tint 1)))))
+                                  (tlist [])
+                                  words)).
+      { admit. }
+      rewrite HEq.
+      reflexivity.
+    }
   admit.
 Admitted.
 End proof.

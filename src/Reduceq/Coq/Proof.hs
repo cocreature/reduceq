@@ -3,6 +3,8 @@ module Reduceq.Coq.Proof
   ( pprintExample
   , pprintProofObligation
   , pprintProofStepsObligation
+  , pprintDiff
+  , pprintDiffs
   , PprintError(..)
   , showPprintError
   , MatchError(..)
@@ -17,8 +19,9 @@ import qualified Data.Set as Set
 import           Data.Text.Prettyprint.Doc as Pretty
 import qualified Data.Text.Prettyprint.Doc.Internal as PrettyInternal
 
-import           Reduceq.Imp.AST (getVarId)
 import           Reduceq.Coq.AST
+import           Reduceq.Coq.Diff
+import           Reduceq.Imp.AST (getVarId)
 
 pprintVar :: VarId -> Doc a
 pprintVar (VarId index _) = parens ("tvar" <+> pretty index)
@@ -101,6 +104,7 @@ pprintExpr (Concat xss) = parens ("tconcat" <+> pprintExpr xss)
 pprintExpr (List xs) = parens ("tlist" <+> list (map pprintExpr xs))
 pprintExpr (Length xs) = parens ("tlength" <+> pprintExpr xs)
 pprintExpr (Range a b c) = parens ("trange" <+> (align . sep . map pprintExpr) [a,b,c])
+pprintExpr (LiftN n e) = pprintExpr e <> ".[ren (+" <> pretty n <> ")]"
 
 pprintTypingJudgment :: Text -> [ExternReference] -> Ty -> Doc a
 pprintTypingJudgment name externRefs ty =
@@ -215,17 +219,15 @@ strictUnion = Map.mergeA Map.preserveMissing Map.preserveMissing whenMatched
              then Right v
              else Left (MatchError k v v'))
 
-pprintEquivalentTheorem :: Text -> ProgramSteps Expr -> Ty -> Either PprintError (Doc a)
-pprintEquivalentTheorem name (ProgramSteps initial steps final) ty = do
-  let body =
+pprintEquivalentTheorem :: (Text -> Bool) -> Text -> ProgramSteps Expr -> Ty -> Either PprintError (Doc a)
+pprintEquivalentTheorem isExtern name steps@(ProgramSteps initial _ _) ty = do
+  let (ProgramSteps initial' steps' final') =
+        (stripExternLifts isExtern . instantiateExpr) <$> steps
+      body =
         (hang 2 . sep)
           ((coqForall <+> hsep args <> ",") :
            argTyAssumptions ++
-           [ pprintApp
-               "equivalent"
-               [ pprintExpr (instantiateExpr initial)
-               , pprintExpr (instantiateExpr final)
-               ] <>
+           [ pprintApp "equivalent" [pprintExpr initial', pprintExpr final'] <>
              "."
            ])
   pure
@@ -235,16 +237,21 @@ pprintEquivalentTheorem name (ProgramSteps initial steps final) ty = do
            2
            (vsep
               (body :
-               "intros." : map (stepTo . instantiateExpr) steps ++ ["admit."]))
+               "intros." :
+               zipWith stepTo (initial' : steps') steps' ++ ["admit."]))
        , "Admitted."
        ])
   where
-    stepTo :: Expr -> Doc a
-    stepTo e =
+    stepTo :: Expr -> Expr -> Doc a
+    stepTo from to =
       vsep
         [ "assert_step_to"
-        , indent 2 (pprintExpr e <> ".")
-        , indent 2 (lbrace <+> "admit." <+> rbrace)
+        , indent 2 (pprintExpr to <> ".")
+        , indent
+            2
+            (lbrace <> indent 1 (pprintDiff isExtern (pruneDiff (diff from to))) <>
+             line <>
+             rbrace)
         ]
     instantiateExpr :: Expr -> Expr
     instantiateExpr e =
@@ -353,7 +360,7 @@ pprintProofObligation (imperative, imperativeTy) (mapreduce, mapreduceTy) = do
 nub :: Ord a => [a] -> [a]
 nub = Set.toList . Set.fromList
 
-pprintExternRefs :: ProgramSteps Expr -> Either PprintError [Doc a]
+pprintExternRefs :: ProgramSteps Expr -> Either PprintError ([Doc a], Text -> Bool)
 pprintExternRefs steps =
   let refs = nub (collectExternReferences =<< (toList steps))
       pprintExternRef (ExternReference name ty) =
@@ -363,10 +370,68 @@ pprintExternRefs steps =
             , pprintTypingJudgment name [] ty <> dot
             ]
         ]
-  in pure (pprintExternRef =<< refs)
+  in pure (pprintExternRef =<< refs, (`Set.member` Set.fromList (map refName refs)))
 
 pprintProofStepsObligation :: ProgramSteps Expr -> Ty -> Either PprintError (Doc a)
 pprintProofStepsObligation steps ty = do
-  externRefs <- pprintExternRefs steps
-  equivalent <- pprintEquivalentTheorem "equivalent" steps ty
+  (externRefs, isExtern) <- pprintExternRefs steps
+  equivalent <- pprintEquivalentTheorem isExtern "equivalent" steps ty
   pure (vsep (coqImports ++ ["", "Section proof.", ""] ++ externRefs ++ ["", equivalent, "End proof."]))
+
+pprintDiff :: (Text -> Bool) -> Diff Expr -> Doc a
+pprintDiff isExtern = pprintDiff' isExtern 0
+
+inEqFun :: Text -> Expr -> Expr -> Doc a -> Doc a
+inEqFun arg f g doc =
+  vsep
+    [ "assert" <+>
+      parens
+        ("HEq" <+>
+         colon <+>
+         "equivalent_fun" <+> (align . vsep) [pprintExpr f, pprintExpr g]) <>
+      dot
+    , braces
+        (indent 2 $
+         align $
+         (vsep
+            [ "intro_eq_fun_abs'" <+> pretty arg <> "."
+            , "repeat simpl_noop_subst."
+            , doc
+            ] <>
+          line))
+    , "rewrite HEq."
+    , "reflexivity."
+    ]
+
+-- | The integer indicates how many binders we have already traversed
+pprintDiff' :: (Text -> Bool) -> Int -> Diff Expr -> Doc a
+pprintDiff' _isExtern _ Equal = mempty
+pprintDiff' _isExtern _ (Different x y) =
+  vsep
+    [ "assert" <+>
+      parens
+        ("HEq" <+>
+         colon <+> "equivalent" <+> (align . vsep) [pprintExpr x, pprintExpr y]) <>
+      dot
+    , braces (" admit. ")
+    , "rewrite HEq."
+    , "reflexivity."
+    ]
+pprintDiff' isExtern !i (DifferentFun f g ty d) =
+  inEqFun
+    arg
+    f
+    g
+    (pprintDiff'
+       isExtern
+       (i + 1)
+       (stripExternLifts isExtern <$>
+        substInDiff (VarId 0 Nothing) (ExternRef (ExternReference arg ty)) d))
+  where
+    arg = "arg" <> show i
+pprintDiff' isExtern !i (DifferentArgs args) =
+  case args of
+    [arg] -> pprintDiff' isExtern i arg
+
+pprintDiffs :: (Text -> Bool) -> [Diff Expr] -> Doc a
+pprintDiffs isExtern = cat . punctuate (line <> "---" <> line) . map (pprintDiff isExtern)

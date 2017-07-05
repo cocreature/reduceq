@@ -10,11 +10,13 @@ module Reduceq.Coq.AST
   , ProgramSteps(..)
   , liftVarsAbove
   , instantiate
-  , shiftVars
+  , substAt
+  , lift1
   , simplify
   , closed
   , collectExternReferences
   , unannotate
+  , stripExternLifts
   ) where
 
 import           Reduceq.Prelude
@@ -115,6 +117,7 @@ data Expr
   | Length Expr
   | Range Expr Expr Expr
   | List [Expr]
+  | LiftN Word Expr
   deriving (Show, Eq, Ord, Data, Typeable)
 
 makePrisms ''Expr
@@ -131,13 +134,14 @@ liftVarsAbove m n expr = go expr
     go (Var (VarId index name))
       | index >= m = Var (VarId (index + n) name)
       | otherwise = Var (VarId index name)
+    go ref@(ExternRef _) = LiftN n ref
     go (Abs ty name body) = Abs ty name (liftVarsAbove (succ m) n body)
     go (Case c x y) =
       Case (go c) (liftVarsAbove (succ m) n x) (liftVarsAbove (succ m) n y)
     go e = e & plate %~ go
 
-shiftVars :: Expr -> Expr
-shiftVars = liftVarsAbove 0 1
+lift1 :: Expr -> Expr
+lift1 = liftVarsAbove 0 1
 
 substAt :: VarId -> Expr -> Expr -> Expr
 substAt id substitute expr = go expr
@@ -146,12 +150,12 @@ substAt id substitute expr = go expr
       | id == id' = substitute
       | id' > id = Var (pred id')
       | otherwise = Var id'
-    go (Abs ty name body) = Abs ty name (substAt (succ id) (shiftVars substitute) body)
+    go (Abs ty name body) = Abs ty name (substAt (succ id) (lift1 substitute) body)
     go (Case c x y) =
       Case
         (go c)
-        (substAt (succ id) (shiftVars substitute) x)
-        (substAt (succ id) (shiftVars substitute) y)
+        (substAt (succ id) (lift1 substitute) x)
+        (substAt (succ id) (lift1 substitute) y)
     go e = over plate go e
 
 instantiate :: Expr -> Expr -> Expr
@@ -204,3 +208,12 @@ simplify =
         | countReferences (VarId 0 Nothing) body <= 1 ->
           Just $ substAt (VarId 0 Nothing) (arg `Annotated` ty) body
       _ -> Nothing
+
+stripLift :: Expr -> Expr
+stripLift (LiftN _ e) = stripLift e
+stripLift e = e
+
+stripExternLifts :: (Text -> Bool) -> Expr -> Expr
+stripExternLifts isExtern (stripLift -> ref@(ExternRef (ExternReference name _)))
+  | isExtern name = ref
+stripExternLifts isExtern e = over plate (stripExternLifts isExtern) e

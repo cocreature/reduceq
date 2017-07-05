@@ -67,6 +67,12 @@ data TypedVar =
 shiftVarMap :: VarContext -> VarContext
 shiftVarMap = Map.mapKeys succ
 
+enterLiftN :: Word -> InferM a -> InferM a
+enterLiftN n =
+  local
+    (Map.mapKeys (\(VarId i name) -> VarId (i - n) name) .
+     Map.filterWithKey (\k _ -> k >= VarId n Nothing))
+
 withBoundVar :: Ty -> InferM a -> InferM a
 withBoundVar ty = local (Map.insert (VarId 0 Nothing) ty . shiftVarMap)
 
@@ -201,6 +207,7 @@ checkType (Fold f x xs) ty = do
       _ <- checkType xs (TyArr tyEl)
       pure tyAcc
     _ -> throwError (ExpectedFunction fTy)
+checkType (LiftN n e) ty = enterLiftN n (checkType e ty)
 checkType e ty = do
   tyE <- inferType e
   guardTyEqualIn e tyE ty
@@ -323,6 +330,8 @@ inferType (Range a b c) = do
   _ <- checkType b TyInt
   _ <- checkType c TyInt
   pure (TyArr TyInt)
+inferType (LiftN n e) = do
+  enterLiftN n (inferType e)
 
 inferStepsType :: ProgramSteps Expr -> InferM Ty
 inferStepsType (ProgramSteps initial steps final) = do

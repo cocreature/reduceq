@@ -65,7 +65,7 @@ withAnonVar (Imp.TypedVar name ty) =
        name
        ( Coq.Var (Coq.VarId 0 (asNameHint name)) `Coq.Annotated` transformTy ty
        , ty) .
-     Map.map (first Coq.shiftVars))
+     Map.map (first Coq.lift1))
 
 -- | 'withBoundVar' behaves like 'withAnonVar' but also wraps the
 -- expression in a lambda that binds the variable
@@ -74,7 +74,7 @@ withBoundVar var@(Imp.TypedVar name ty) =
   withAnonVar var . fmap (Coq.Abs (transformTy ty) (Just name))
 
 withAnonBoundVar :: Coq.Ty -> TransformM Coq.Expr -> TransformM Coq.Expr
-withAnonBoundVar ty = local (Map.map (first Coq.shiftVars)) . fmap (Coq.Abs ty Nothing)
+withAnonBoundVar ty = local (Map.map (first Coq.lift1)) . fmap (Coq.Abs ty Nothing)
 
 withBoundVarProd :: (Imp.TypedVar, Imp.TypedVar) -> TransformM Coq.Expr -> TransformM Coq.Expr
 withBoundVarProd (Imp.TypedVar fstName fstTy, Imp.TypedVar sndName sndTy) =
@@ -183,7 +183,7 @@ withVarsAsTuple :: [Imp.TypedVar]
 withVarsAsTuple vars =
   local
     (Map.union (refAsTuple (Coq.Var (Coq.VarId 0 nameHint)) vars) .
-     Map.map (first Coq.shiftVars)) .
+     Map.map (first Coq.lift1)) .
   fmap (Coq.Abs (tupleType (map Imp.varType vars)) name)
   where
     (nameHint, name) =
@@ -201,7 +201,7 @@ withAccVarsAsTuple (Imp.TypedVar elName elTy) vars =
        (Coq.Snd (Coq.Var (Coq.VarId 0 Nothing)), elTy) .
      Map.union
        (refAsTuple (Coq.Fst (Coq.Var (Coq.VarId 0 Nothing))) vars) .
-     Map.map (first Coq.shiftVars)) .
+     Map.map (first Coq.lift1)) .
   fmap
     (Coq.Abs (Coq.TyProd (tupleType (map Imp.varType vars)) (transformTy elTy)) Nothing)
 
@@ -327,6 +327,12 @@ transformExpr (Imp.Call (Imp.VarRef "length") args) =
   case args of
     [xs] -> Coq.Length <$> transformExpr xs
     _ -> throwError (ExpectedArgs "length" 1 (length args))
+transformExpr (Imp.Call (Imp.VarRef "range") args) =
+  case args of
+    [initial, final, step] ->
+      Coq.Range <$> transformExpr initial <*> transformExpr final <*>
+      transformExpr step
+    _ -> throwError (ExpectedArgs "range" 3 (length args))
 transformExpr (Imp.Call fun args) =
   foldl'
     (\f arg -> Coq.App <$> f <*> transformExpr arg)
