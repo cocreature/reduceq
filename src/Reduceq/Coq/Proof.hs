@@ -219,17 +219,12 @@ strictUnion = Map.mergeA Map.preserveMissing Map.preserveMissing whenMatched
              then Right v
              else Left (MatchError k v v'))
 
-pprintEquivalentTheorem :: (Text -> Bool) -> Text -> ProgramSteps Expr -> Ty -> Either PprintError (Doc a)
-pprintEquivalentTheorem isExtern name steps@(ProgramSteps initial _ _) ty = do
+pprintEquivalentTheorem :: (Text -> Bool) -> [Expr] -> Text -> ProgramSteps Expr -> Either PprintError (Doc a)
+pprintEquivalentTheorem isExtern argRefs name steps = do
   let (ProgramSteps initial' steps' final') =
         (stripExternLifts isExtern . instantiateExpr) <$> steps
       body =
-        (hang 2 . sep)
-          ((coqForall <+> hsep args <> ",") :
-           argTyAssumptions ++
-           [ pprintApp "equivalent" [pprintExpr initial', pprintExpr final'] <>
-             "."
-           ])
+        pprintApp "equivalent" [pprintExpr initial', pprintExpr final'] <> "."
   pure
     (vsep
        [ "Theorem" <+> pretty name <+> colon
@@ -254,35 +249,7 @@ pprintEquivalentTheorem isExtern name steps@(ProgramSteps initial _ _) ty = do
              rbrace)
         ]
     instantiateExpr :: Expr -> Expr
-    instantiateExpr e =
-      foldl'
-        (\expr arg -> instantiate arg expr)
-        e
-        (zipWith
-           (\name' ty' -> ExternRef (ExternReference name' ty'))
-           argNames
-           argTys)
-    argTyAssumptions :: [Doc a]
-    argTyAssumptions =
-      zipWith
-        (\ty' name' -> pprintTypingJudgment name' [] ty' <+> "->")
-        argTys
-        argNames
-    argTys :: [Ty]
-    argTys =
-      let argTys' (TyFun dom cod) = dom : argTys' cod
-          argTys' _ = []
-      in argTys' ty
-    args :: [Doc a]
-    args = map pretty argNames
-    argNames :: [Text]
-    argNames =
-      let argNames' (unannotate -> Abs _ name' body) = name' : argNames' body
-          argNames' _ = []
-      in zipWith
-           (\def varId -> fromMaybe def (fmap getVarId varId))
-           (map (\i -> "arg" <> show i) [1 :: Int ..])
-           (argNames' initial)
+    instantiateExpr e = foldl' (\expr arg -> instantiate arg expr) e argRefs
 
 pprintEquivalence :: Text -> (Expr, Ty) -> (Expr, Ty) -> Either PprintError (Doc a)
 pprintEquivalence _ (_, ty) (_, ty')
@@ -363,20 +330,59 @@ nub = Set.toList . Set.fromList
 pprintExternRefs :: ProgramSteps Expr -> Either PprintError ([Doc a], Text -> Bool)
 pprintExternRefs steps =
   let refs = nub (collectExternReferences =<< (toList steps))
-      pprintExternRef (ExternReference name ty) =
-        [ "Variable" <+> pretty name <+> colon <+> "term" <> dot
-        , (hang 2 . sep)
-            [ "Variable" <+> pretty name <> "_ty" <+> colon
-            , pprintTypingJudgment name [] ty <> dot
-            ]
-        ]
-  in pure (pprintExternRef =<< refs, (`Set.member` Set.fromList (map refName refs)))
+      pprintExternRef (ExternReference name ty) = pprintExternVar name ty
+  in pure
+       ( pprintExternRef =<< refs
+       , (`Set.member` Set.fromList (map refName refs)))
+
+pprintExternVar :: Text -> Ty -> [Doc a]
+pprintExternVar name ty =
+  [ "Variable" <+> pretty name <+> colon <+> "term" <> dot
+  , (hang 2 . sep)
+      [ "Hypothesis" <+> pretty name <> "_ty" <+> colon
+      , pprintTypingJudgment name [] ty <> dot
+      ]
+  , "Hypothesis" <+>
+    pretty name <> "_val" <+> colon <+> "value" <+> pretty name <> dot
+  ]
+
+pprintArgRefs :: ProgramSteps Expr -> Ty -> ([Expr], [Doc a], Text -> Bool)
+pprintArgRefs steps ty =
+  ( zipWith (\name ty' -> ExternRef (ExternReference name ty')) argNames argTys
+  , concat (zipWith pprintExternVar argNames argTys)
+  , (`Set.member` Set.fromList argNames))
+  where
+    argTys :: [Ty]
+    argTys =
+      let argTys' (TyFun dom cod) = dom : argTys' cod
+          argTys' _ = []
+      in argTys' ty
+    argNames :: [Text]
+    argNames =
+      let argNames' (unannotate -> Abs _ name' body) = name' : argNames' body
+          argNames' _ = []
+      in zipWith
+           (\def varId -> fromMaybe def (fmap getVarId varId))
+           (map (\i -> "arg" <> show i) [1 :: Int ..])
+           (argNames' (imperativeProgram steps))
 
 pprintProofStepsObligation :: ProgramSteps Expr -> Ty -> Either PprintError (Doc a)
 pprintProofStepsObligation steps ty = do
   (externRefs, isExtern) <- pprintExternRefs steps
-  equivalent <- pprintEquivalentTheorem isExtern "equivalent" steps ty
-  pure (vsep (coqImports ++ ["", "Section proof.", ""] ++ externRefs ++ ["", equivalent, "End proof."]))
+  let (argRefs, argAssumptions, isArg) = pprintArgRefs steps ty
+  equivalent <-
+    pprintEquivalentTheorem
+      (\n -> isExtern n || isArg n)
+      argRefs
+      "equivalent"
+      steps
+  pure
+    (vsep
+       (coqImports ++
+        ["", "Section proof.", ""] ++
+        ("(* extern references *)" : externRefs) ++
+        ("(* arguments *)" : argAssumptions) ++ ["", equivalent, "End proof."]))
+
 
 pprintDiff :: (Text -> Bool) -> Diff Expr -> Doc a
 pprintDiff isExtern = pprintDiff' isExtern 0

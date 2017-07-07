@@ -4,28 +4,31 @@ Require Import Determinism Misc Notations Preservation Rules Setoid_Equivalence 
 
 Section proof.
 
+(* extern references *)
+(* arguments *)
+Variable words : term.
+Hypothesis words_ty : empty_ctx |-- words \in (TList TInt).
+Hypothesis words_val : value words.
 
 Theorem equivalent :
-  forall words,
-    empty_ctx |-- words \in (TList TInt) ->
-    (equivalent
-       (tfold
-          (tabs ((TList (TInt :*: TInt)) :*: TInt)
-                (tcase
-                   (tread_at_key (tfst (tvar 0)) (tsnd (tvar 0)))
-                   (twrite_at_key (tfst (tvar 1)) (tsnd (tvar 1)) (tint 1))
-                   (twrite_at_key (tfst (tvar 1)) (tsnd (tvar 1)) ((tvar 0) + (tint 1)))))
-          (tlist [])
-          words)
-       (tmap
-          (tabs (TInt :*: (TList TInt))
-                (tpair
-                   (tfst (tvar 0))
-                   (tfold
-                      (tabs (TInt :*: TInt) ((tfst (tvar 0)) + (tsnd (tvar 0))))
-                      (tint 0)
-                      (tsnd (tvar 0)))))
-          (tgroup (tmap (tabs TInt (tpair (tvar 0) (tint 1))) words)))).
+  (equivalent
+     (tfold
+        (tabs ((TList (TInt :*: TInt)) :*: TInt)
+              (tcase
+                 (tread_at_key (tfst (tvar 0)) (tsnd (tvar 0)))
+                 (twrite_at_key (tfst (tvar 1)) (tsnd (tvar 1)) (tint 1))
+                 (twrite_at_key (tfst (tvar 1)) (tsnd (tvar 1)) ((tvar 0) + (tint 1)))))
+        (tlist [])
+        words)
+     (tmap
+        (tabs (TInt :*: (TList TInt))
+              (tpair
+                 (tfst (tvar 0))
+                 (tfold
+                    (tabs (TInt :*: TInt) ((tfst (tvar 0)) + (tsnd (tvar 0))))
+                    (tint 0)
+                    (tsnd (tvar 0)))))
+        (tgroup (tmap (tabs TInt (tpair (tvar 0) (tint 1))) words)))).
   intros.
   assert_step_to
     (tfold
