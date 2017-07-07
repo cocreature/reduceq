@@ -208,6 +208,13 @@ checkType (Fold f x xs) ty = do
       pure tyAcc
     _ -> throwError (ExpectedFunction fTy)
 checkType (LiftN n e) ty = enterLiftN n (checkType e ty)
+checkType (Replicate count val) ty =
+  case ty of
+    TyArr tyVal -> do
+      _ <- checkType count TyInt
+      _ <- checkType val tyVal
+      pure ty
+    _ -> throwError (ExpectedArr ty)
 checkType e ty = do
   tyE <- inferType e
   guardTyEqualIn e tyE ty
@@ -330,6 +337,10 @@ inferType (Range a b c) = do
   _ <- checkType b TyInt
   _ <- checkType c TyInt
   pure (TyArr TyInt)
+inferType (Replicate count val) = do
+  _ <- checkType count TyInt
+  tyVal <- inferType val
+  pure (TyArr tyVal)
 inferType (LiftN n e) = do
   enterLiftN n (inferType e)
 

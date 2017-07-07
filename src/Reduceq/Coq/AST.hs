@@ -116,6 +116,7 @@ data Expr
   | Concat Expr
   | Length Expr
   | Range Expr Expr Expr
+  | Replicate Expr Expr
   | List [Expr]
   | LiftN Word Expr
   deriving (Show, Eq, Ord, Data, Typeable)

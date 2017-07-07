@@ -155,7 +155,11 @@ pprintExpr (Range a b c) = do
   a' <- pprintExpr a
   b' <- pprintExpr b
   c' <- pprintExpr c
-  pure (parens ("range" <+> a' <+> b' <+> c'))
+  pure (parens ("trange" <+> a' <+> b' <+> c'))
+pprintExpr (Replicate count val) = do
+  count' <- pprintExpr count
+  val' <- pprintExpr val
+  pure (parens ("treplicate" <+> (align . sep) [count', val']))
 pprintExpr (LiftN _ e) = pprintExpr e
 
 displayDoc :: Doc a -> Text

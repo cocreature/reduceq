@@ -13,6 +13,7 @@ module Reduceq.Coq.Proof
 
 import           Reduceq.Prelude
 
+import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Map as Map
 import qualified Data.Map.Merge.Lazy as Map
 import qualified Data.Set as Set
@@ -104,6 +105,8 @@ pprintExpr (Concat xss) = parens ("tconcat" <+> pprintExpr xss)
 pprintExpr (List xs) = parens ("tlist" <+> list (map pprintExpr xs))
 pprintExpr (Length xs) = parens ("tlength" <+> pprintExpr xs)
 pprintExpr (Range a b c) = parens ("trange" <+> (align . sep . map pprintExpr) [a,b,c])
+pprintExpr (Replicate count val) =
+  parens ("treplicate" <+> (align . sep) [pprintExpr count, pprintExpr val])
 pprintExpr (LiftN n e) = pprintExpr e <> ".[ren (+" <> pretty n <> ")]"
 
 pprintTypingJudgment :: Text -> [ExternReference] -> Ty -> Doc a
@@ -233,7 +236,12 @@ pprintEquivalentTheorem isExtern argRefs name steps = do
            (vsep
               (body :
                "intros." :
-               zipWith stepTo (initial' : steps') steps' ++ ["admit."]))
+               zipWith stepTo (initial' : steps') steps' ++
+               [ pprintDiff
+                   isExtern
+                   (pruneDiff (diff (NonEmpty.last (initial' :| steps')) final'))
+               , "admit."
+               ]))
        , "Admitted."
        ])
   where
@@ -419,7 +427,7 @@ pprintDiff' _isExtern _ (Different x y) =
         ("HEq" <+>
          colon <+> "equivalent" <+> (align . vsep) [pprintExpr x, pprintExpr y]) <>
       dot
-    , braces (" admit. ")
+    , (align . vcat) [lbrace <+> "admit.", rbrace]
     , "rewrite HEq."
     , "reflexivity."
     ]
@@ -436,8 +444,7 @@ pprintDiff' isExtern !i (DifferentFun f g ty d) =
   where
     arg = "arg" <> show i
 pprintDiff' isExtern !i (DifferentArgs args) =
-  case args of
-    [arg] -> pprintDiff' isExtern i arg
+  vcat (map (pprintDiff' isExtern i) args)
 
 pprintDiffs :: (Text -> Bool) -> [Diff Expr] -> Doc a
 pprintDiffs isExtern = cat . punctuate (line <> "---" <> line) . map (pprintDiff isExtern)

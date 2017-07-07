@@ -333,6 +333,11 @@ transformExpr (Imp.Call (Imp.VarRef "range") args) =
       Coq.Range <$> transformExpr initial <*> transformExpr final <*>
       transformExpr step
     _ -> throwError (ExpectedArgs "range" 3 (length args))
+transformExpr (Imp.Call (Imp.VarRef "replicate") args) =
+  case args of
+    [count, val] ->
+      Coq.Replicate <$> transformExpr count <*> transformExpr val
+    _ -> throwError (ExpectedArgs "replicate" 2 (length args))
 transformExpr (Imp.Call fun args) =
   foldl'
     (\f arg -> Coq.App <$> f <*> transformExpr arg)
