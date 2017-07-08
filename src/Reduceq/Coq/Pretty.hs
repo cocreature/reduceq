@@ -1,3 +1,4 @@
+{-# LANGUAGE ViewPatterns #-}
 module Reduceq.Coq.Pretty
   ( displayDoc
   , displayCompact
@@ -72,95 +73,96 @@ pprintComp IEq = "="
 pprintComp ILt = "<"
 pprintComp IGt = ">"
 
-pprintExpr :: Expr -> PprintM (Doc AnsiStyle)
+pprintExpr :: Expr a -> PprintM (Doc AnsiStyle)
 pprintExpr (Var id) = coloredVar id
 pprintExpr (IntLit i)
   | i >= 0 = pure (pretty i)
   | otherwise = (pure . parens . pretty) i
-pprintExpr (App f x) =
-  parens . align . sep <$> sequence [pprintExpr f, pprintExpr x]
+pprintExpr (App (stripAnn -> f) (stripAnn -> x)) =
+  parens . align . sep <$>
+  sequence [pprintExpr f, pprintExpr x]
 pprintExpr (Abs ty _name body) =
   withBoundVar $ \c ->
     parens . hang 2 . sep <$>
     sequence
       [ pure ("fun" <+> annotate (color c) "▢" <+> ":" <+> pprintTy ty <> ".")
-      , pprintExpr body
+      , pprintExpr (stripAnn body)
       ]
-pprintExpr (Case x ifL ifR) = do
+pprintExpr (Case (stripAnn -> x) (stripAnn -> ifL) (stripAnn -> ifR)) = do
   x' <- pprintExpr x
   ifL' <- withBoundVar (\_ -> pprintExpr ifL)
   ifR' <- withBoundVar (\_ -> pprintExpr ifR)
   (pure . parens . hang 3 . sep) ["case" <+> x', ifL', ifR']
-pprintExpr (Fst x) = parens . ("fst" <+>) <$> pprintExpr x
-pprintExpr (Snd x) = parens . ("snd" <+>) <$> pprintExpr x
-pprintExpr (Pair x y) =
+pprintExpr (Fst (stripAnn -> x)) = parens . ("fst" <+>) <$> pprintExpr x
+pprintExpr (Snd (stripAnn -> x)) = parens . ("snd" <+>) <$> pprintExpr x
+pprintExpr (Pair (stripAnn -> x) (stripAnn -> y)) =
   liftA2 (\a b -> parens (a <> "," <+> b)) (pprintExpr x) (pprintExpr y)
-pprintExpr (If cond ifTrue ifFalse) =
+pprintExpr (If (stripAnn -> cond) (stripAnn -> ifTrue) (stripAnn -> ifFalse)) =
   parens . hang 3 . sep <$>
   sequence
     [("if" <+>) <$> pprintExpr cond, pprintExpr ifTrue, pprintExpr ifFalse]
-pprintExpr (IntBinop op x y) =
+pprintExpr (IntBinop op (stripAnn -> x) (stripAnn -> y)) =
   parens . hsep <$> sequence [pprintExpr x, pure (pprintOp op), pprintExpr y]
-pprintExpr (IntComp comp x y) =
+pprintExpr (IntComp comp (stripAnn -> x) (stripAnn -> y)) =
   parens . hsep <$>
   sequence [pprintExpr x, pure (pprintComp comp), pprintExpr y]
-pprintExpr (Iter f x) =
+pprintExpr (Iter (stripAnn -> f) (stripAnn -> x)) =
   parens . hsep <$> sequence [pure "iter", pprintExpr f, pprintExpr x]
-pprintExpr (Inl x) = parens . ("inl" <+>) <$> pprintExpr x
-pprintExpr (Inr x) = parens . ("inr" <+>) <$> pprintExpr x
-pprintExpr (Set arr index val) =
+pprintExpr (Inl(stripAnn -> x)) = parens . ("inl" <+>) <$> pprintExpr x
+pprintExpr (Inr(stripAnn -> x)) = parens . ("inr" <+>) <$> pprintExpr x
+pprintExpr (Set (stripAnn -> arr) (stripAnn -> index) (stripAnn -> val)) =
   liftA3
     (\arr' index' val' -> parens ("set" <+> arr' <+> index' <+> val'))
     (pprintExpr arr)
     (pprintExpr index)
     (pprintExpr val)
-pprintExpr (SetAtKey arr index val) =
+pprintExpr (SetAtKey (stripAnn -> arr) (stripAnn -> index) (stripAnn -> val)) =
   liftA3
     (\arr' index' val' -> parens ("set_at_key" <+> arr' <+> index' <+> val'))
     (pprintExpr arr)
     (pprintExpr index)
     (pprintExpr val)
-pprintExpr (Read arr index) =
+pprintExpr (Read (stripAnn -> arr) (stripAnn -> index)) =
   liftA2
     (\arr' index' -> parens ("read" <+> arr' <+> index'))
     (pprintExpr arr)
     (pprintExpr index)
-pprintExpr (ReadAtKey m key) =
+pprintExpr (ReadAtKey (stripAnn -> m) (stripAnn -> key)) =
   liftA2
     (\m' k -> parens ("read_at_key" <+> m' <+> k))
     (pprintExpr m)
     (pprintExpr key)
 pprintExpr Unit = pure "()"
 pprintExpr (ExternRef (ExternReference name _)) = pure (pretty name)
-pprintExpr (Annotated e _) = pprintExpr e
-pprintExpr (Map f xs) = do
+pprintExpr (Annotated e _) = pprintExpr (stripAnn e)
+pprintExpr (Map (stripAnn -> f) (stripAnn -> xs)) = do
   f' <- pprintExpr f
   xs' <- pprintExpr xs
   (pure . parens . hang 3 . sep) ["map", f', xs']
-pprintExpr (Group xs) = do
+pprintExpr (Group (stripAnn -> xs)) = do
   xs' <- pprintExpr xs
   (pure . parens . hang 3 . sep) ["group", xs']
-pprintExpr (Concat xss) = do
+pprintExpr (Concat (stripAnn -> xss)) = do
   xss' <- pprintExpr xss
   (pure . parens . hang 3 . sep) ["concat", xss']
-pprintExpr (Fold f i xs) = do
+pprintExpr (Fold (stripAnn -> f) (stripAnn -> i) (stripAnn -> xs)) = do
   f' <- pprintExpr f
   i' <- pprintExpr i
   xs' <- pprintExpr xs
   (pure . parens . hang 3 . sep) ["fold", f', i', xs']
-pprintExpr (List xs) =
+pprintExpr (List (map stripAnn -> xs)) =
   list <$> mapM pprintExpr xs
-pprintExpr (Length xs) = (parens . ("length" <+>)) <$> pprintExpr xs
-pprintExpr (Range a b c) = do
+pprintExpr (Length (stripAnn -> xs)) = (parens . ("length" <+>)) <$> pprintExpr xs
+pprintExpr (Range (stripAnn -> a) (stripAnn -> b) (stripAnn -> c)) = do
   a' <- pprintExpr a
   b' <- pprintExpr b
   c' <- pprintExpr c
   pure (parens ("trange" <+> a' <+> b' <+> c'))
-pprintExpr (Replicate count val) = do
+pprintExpr (Replicate (stripAnn -> count) (stripAnn -> val)) = do
   count' <- pprintExpr count
   val' <- pprintExpr val
   pure (parens ("treplicate" <+> (align . sep) [count', val']))
-pprintExpr (LiftN _ e) = pprintExpr e
+pprintExpr (LiftN _ e) = pprintExpr (stripAnn e)
 
 displayDoc :: Doc a -> Text
 displayDoc =

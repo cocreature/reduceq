@@ -1,7 +1,8 @@
+{-# LANGUAGE ViewPatterns #-}
 module Reduceq.Coq.Diff
   ( Diff(..)
+  , Morphism(..)
   , diff
-  , diffSteps
   , pruneDiff
   , substInDiff
   ) where
@@ -10,61 +11,67 @@ import Reduceq.Prelude
 
 import Reduceq.Coq.AST
 
+data Morphism
+  = MFst
+  | MSnd
+  deriving (Show, Eq, Ord)
+
 data Diff e
   = Equal
   | Different !e
               !e
+              !Ty
   | DifferentFun !e
                  !e
                  !Ty
+                 !Ty
                  (Diff e)
-  | DifferentArgs [Diff e]
+  | DifferentMor !Morphism [Diff e]
   deriving (Show, Eq, Ord, Functor, Foldable, Traversable)
 
-diff :: Expr -> Expr -> Diff Expr
-diff (Annotated e _) e' = diff e e'
-diff e (Annotated e' _) = diff e e'
-diff x@(Abs ty _ body) y@(Abs ty' _ body') =
-  assert (ty == ty') (DifferentFun x y ty (diff body body'))
-diff (Fst x) (Fst y) = diff x y
-diff (Snd x) (Snd y) = diff x y
-diff (Iter f x) (Iter g y) = DifferentArgs (map (uncurry diff) [(f, g), (x, y)])
-diff (App f x) (App f' x') = DifferentArgs [diff f f', diff x x']
-diff (If a b c) (If a' b' c') =
-  DifferentArgs (map (uncurry diff) [(a, a'), (b, b'), (c, c')])
-diff (Inr x) (Inr x') = diff x x'
-diff (Inl x) (Inl x') = diff x x'
-diff (Pair x y) (Pair x' y') = DifferentArgs [diff x x', diff y y']
-diff x y
-  | x == y = Equal
-  | otherwise = Different x y
+diff :: TypedExpr -> TypedExpr -> Diff TypedExpr
+diff (Ann t (Annotated e _)) e' = diff e e'
+diff e (Ann t (Annotated e' _)) = diff e e'
+diff f@(Ann (TyFun dom ran) (Abs ty _ body)) g@(Ann (TyFun dom' ran') (Abs ty' _ body'))
+  | dom == dom' && ran == ran' && ty == ty' && ty == dom =
+    DifferentFun f g dom ran (diff body body')
+diff (stripAnn -> (Fst x@(Ann (TyProd a b) _))) (stripAnn -> Fst y@(Ann (TyProd a' b') _))
+  | a == a' && b == b' = DifferentMor MFst [diff x y]
+diff (stripAnn -> (Snd x@(Ann (TyProd a b) _))) (stripAnn -> Snd y@(Ann (TyProd a' b') _))
+  | a == a' && b == b' = DifferentMor MSnd [diff x y]
+-- diff (Iter f x) (Iter g y) = DifferentArgs (map (uncurry diff) [(f, g), (x, y)])
+-- diff (App f x) (App f' x') = DifferentArgs [diff f f', diff x x']
+-- diff (If a b c) (If a' b' c') =
+--   DifferentArgs (map (uncurry diff) [(a, a'), (b, b'), (c, c')])
+-- diff (Inr x) (Inr x') = diff x x'
+-- diff (Inl x) (Inl x') = diff x x'
+-- diff (Pair x y) (Pair x' y') = DifferentArgs [diff x x', diff y y']
+diff (Ann t x) (Ann t' x')
+  | x == x' = Equal
+  | otherwise = assert (t == t') $ Different (Ann t x) (Ann t' x') t
 
-diffSteps :: ProgramSteps Expr -> [Diff Expr]
-diffSteps (ProgramSteps initial steps final) =
-  zipWith diff (initial : steps) (steps ++ [final])
-
-pruneDiff :: Diff Expr -> Diff Expr
+pruneDiff :: Eq e => Diff e -> Diff e
 pruneDiff Equal = Equal
-pruneDiff (DifferentFun x y ty d) =
+pruneDiff (DifferentFun x y dom ran d) =
   case pruneDiff d of
     Equal -> Equal
-    d' -> DifferentFun x y ty d'
-pruneDiff (Different x y) = Different x y
-pruneDiff (DifferentArgs args) =
+    d' -> DifferentFun x y dom ran d'
+pruneDiff (Different t x y) = Different t x y
+pruneDiff (DifferentMor m args) =
   case filter (/= Equal) (pruneDiff <$> args) of
     [] -> Equal
-    args' -> DifferentArgs args'
+    args' -> DifferentMor m args'
 
-substInDiff :: VarId -> Expr -> Diff Expr -> Diff Expr
+substInDiff :: VarId -> TypedExpr -> Diff TypedExpr -> Diff TypedExpr
 substInDiff !id substitute d = go d
   where
     go Equal = Equal
-    go (DifferentFun f g ty d') =
+    go (DifferentFun f g dom ran d') =
       DifferentFun
         (substAt id substitute f)
         (substAt id substitute g)
-        ty
+        dom
+        ran
         (substInDiff (succ id) (lift1 substitute) d')
-    go (Different x y) =
-      Different (substAt id substitute x) (substAt id substitute y)
-    go (DifferentArgs args) = DifferentArgs (map go args)
+    go (Different x y t) =
+      Different (substAt id substitute x) (substAt id substitute y) t

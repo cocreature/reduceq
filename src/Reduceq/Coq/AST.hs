@@ -2,12 +2,15 @@
 {-# LANGUAGE ViewPatterns #-}
 module Reduceq.Coq.AST
   ( Expr(..)
+  , Ann(..)
   , ExternReference(..)
   , Ty(..)
   , VarId(..)
   , IntBinop(..)
   , IntComp(..)
   , ProgramSteps(..)
+  , TypedExpr
+  , stripAnn
   , liftVarsAbove
   , instantiate
   , substAt
@@ -63,158 +66,177 @@ data ExternReference = ExternReference
   , refType :: !Ty
   } deriving (Show, Eq, Ord, Data, Typeable)
 
-data Expr
+stripAnn :: Ann a e -> e
+stripAnn (Ann _ e) = e
+
+data Ann a e =
+  Ann !a
+      !e
+  deriving (Show, Eq, Ord, Data, Typeable, Functor)
+
+data Expr a
   = Var VarId
   | ExternRef !ExternReference
   | IntLit !Integer
-  | App Expr
-        Expr
+  | App (Ann a (Expr a))
+        (Ann a (Expr a))
   | Abs Ty
         (Maybe Imp.VarId) -- Name hint
-        Expr
-  | Fst Expr
-  | Snd Expr
-  | Pair Expr
-         Expr
-  | Inl Expr
-  | Inr Expr
-  | Case Expr
-         Expr
-         Expr
-  | If Expr
-       Expr
-       Expr
+        (Ann a (Expr a))
+  | Fst (Ann a (Expr a))
+  | Snd (Ann a (Expr a))
+  | Pair (Ann a (Expr a))
+         (Ann a (Expr a))
+  | Inl (Ann a (Expr a))
+  | Inr (Ann a (Expr a))
+  | Case (Ann a (Expr a))
+         (Ann a (Expr a))
+         (Ann a (Expr a))
+  | If (Ann a (Expr a))
+       (Ann a (Expr a))
+       (Ann a (Expr a))
   | IntBinop IntBinop
-             Expr
-             Expr
+             (Ann a (Expr a))
+             (Ann a (Expr a))
   | IntComp IntComp
-            Expr
-            Expr
-  | Iter Expr
-         Expr -- The first argument is a function representing
+            (Ann a (Expr a))
+            (Ann a (Expr a))
+  | Iter (Ann a (Expr a))
+         (Ann a (Expr a)) -- The first argument is a function representing
                    -- the loop body and the second argument is the
                    -- initial value
-  | Set Expr
-        Expr
-        Expr -- Set array index val
-  | SetAtKey Expr
-             Expr
-             Expr -- Set map key val
-  | Read Expr
-         Expr -- Read array index
-  | ReadAtKey Expr
-              Expr -- Read map val
+  | Set (Ann a (Expr a))
+        (Ann a (Expr a))
+        (Ann a (Expr a)) -- Set array index val
+  | SetAtKey (Ann a (Expr a))
+             (Ann a (Expr a))
+             (Ann a (Expr a)) -- Set map key val
+  | Read (Ann a (Expr a))
+         (Ann a (Expr a)) -- Read array index
+  | ReadAtKey (Ann a (Expr a))
+              (Ann a (Expr a)) -- Read map val
   | Unit
-  | Annotated Expr
+  | Annotated (Ann a (Expr a))
               Ty -- explicit type annotations
-  | Map Expr
-        Expr
-  | Group Expr
-  | Fold Expr
-         Expr
-         Expr
-  | Concat Expr
-  | Length Expr
-  | Range Expr Expr Expr
-  | Replicate Expr Expr
-  | List [Expr]
-  | LiftN Word Expr
+  | Map (Ann a (Expr a))
+        (Ann a (Expr a))
+  | Group (Ann a (Expr a))
+  | Fold (Ann a (Expr a))
+         (Ann a (Expr a))
+         (Ann a (Expr a))
+  | Concat (Ann a (Expr a))
+  | Length (Ann a (Expr a))
+  | Range (Ann a (Expr a))
+          (Ann a (Expr a))
+          (Ann a (Expr a))
+  | Replicate (Ann a (Expr a))
+              (Ann a (Expr a))
+  | List [(Ann a (Expr a))]
+  | LiftN Word
+          (Ann a (Expr a))
   deriving (Show, Eq, Ord, Data, Typeable)
 
 makePrisms ''Expr
 
-collectExternReferences :: Expr -> [ExternReference]
+collectExternReferences :: Data a => Expr a -> [ExternReference]
 collectExternReferences e = e ^.. cosmos . _ExternRef
 
-instance Plated Expr
+instance (Data a, Data e) => Plated (Ann a e)
+instance Data a => Plated (Expr a)
 
 -- | Increment free DeBruijn indices greater or equal than m by n
-liftVarsAbove :: Word -> Word -> Expr -> Expr
+liftVarsAbove :: Data a => Word -> Word -> Ann a (Expr a) -> Ann a (Expr a)
 liftVarsAbove m n expr = go expr
   where
-    go (Var (VarId index name))
-      | index >= m = Var (VarId (index + n) name)
-      | otherwise = Var (VarId index name)
-    go ref@(ExternRef _) = LiftN n ref
-    go (Abs ty name body) = Abs ty name (liftVarsAbove (succ m) n body)
-    go (Case c x y) =
-      Case (go c) (liftVarsAbove (succ m) n x) (liftVarsAbove (succ m) n y)
+    go (Ann a (Var (VarId index name)))
+      | index >= m = Ann a (Var (VarId (index + n) name))
+      | otherwise = Ann a (Var (VarId index name))
+    go ref@(Ann a (ExternRef _)) = Ann a (LiftN n ref)
+    go (Ann a (Abs ty name body)) =
+      Ann a (Abs ty name (liftVarsAbove (succ m) n body))
+    go (Ann a (Case c x y)) =
+      (Ann
+         a
+         (Case (go c) (liftVarsAbove (succ m) n x) (liftVarsAbove (succ m) n y)))
     go e = e & plate %~ go
 
-lift1 :: Expr -> Expr
+lift1 :: Data a => Ann a (Expr a) -> Ann a (Expr a)
 lift1 = liftVarsAbove 0 1
 
-substAt :: VarId -> Expr -> Expr -> Expr
+substAt :: Data a => VarId -> Ann a (Expr a) -> Ann a (Expr a) -> Ann a (Expr a)
 substAt id substitute expr = go expr
   where
-    go (Var id')
+    go (Ann a (Var id'))
       | id == id' = substitute
-      | id' > id = Var (pred id')
-      | otherwise = Var id'
-    go (Abs ty name body) = Abs ty name (substAt (succ id) (lift1 substitute) body)
-    go (Case c x y) =
-      Case
-        (go c)
-        (substAt (succ id) (lift1 substitute) x)
-        (substAt (succ id) (lift1 substitute) y)
+      | id' > id = Ann a (Var (pred id'))
+      | otherwise = Ann a (Var id')
+    go (Ann a (Abs ty name body)) =
+      Ann a (Abs ty name (substAt (succ id) (lift1 substitute) body))
+    go (Ann a (Case c x y)) =
+      Ann
+        a
+        (Case
+           (go c)
+           (substAt (succ id) (lift1 substitute) x)
+           (substAt (succ id) (lift1 substitute) y))
     go e = over plate go e
 
-instantiate :: Expr -> Expr -> Expr
-instantiate substitute (unannotate -> Abs _ty _name body) =
+instantiate :: (Show a, Data a) => Ann a (Expr a) -> Ann a (Expr a) -> Ann a (Expr a)
+instantiate substitute (unannotate . stripAnn -> Abs _ty _name body) =
   substAt (VarId 0 Nothing) substitute body
 instantiate _ expr =
   panic ("Tried to instantiate something that isn’t a binder: " <> show expr)
 
-unannotate :: Expr -> Expr
-unannotate (Annotated e _) = unannotate e
+unannotate :: Expr a -> Expr a
+unannotate (Annotated e _) = unannotate (stripAnn e)
 unannotate e = e
 
-closed :: Expr -> Bool
+closed :: Data a => Expr a -> Bool
 closed expr = execState (closedUpTo (VarId 0 Nothing) expr) True
-  where closedUpTo :: VarId -> Expr -> State Bool ()
-        closedUpTo id (Var id') = modify' (&& id > id')
-        closedUpTo id (Abs _ _ body) = closedUpTo (succ id) body
-        closedUpTo id (Case c x y) =
-          closedUpTo id c >>
-          closedUpTo (succ id) x >>
-          closedUpTo (succ id) y
-        closedUpTo id e = traverseOf_ plate (closedUpTo id) e
+  where
+    closedUpTo id (Var id') = modify' (&& id > id')
+    closedUpTo id (Abs _ _ body) = closedUpTo (succ id) (stripAnn body)
+    closedUpTo id (Case c x y) =
+      closedUpTo id (stripAnn c) >> closedUpTo (succ id) (stripAnn x) >>
+      closedUpTo (succ id) (stripAnn y)
+    closedUpTo id e = traverseOf_ plate (closedUpTo id) e
 
-countReferences :: VarId -> Expr -> Int
+countReferences :: Data a => VarId -> Expr a -> Int
 countReferences varId expr = execState (go varId expr) 0
-  where go :: VarId -> Expr -> State Int ()
-        go id (Var id')
+  where go id (Var id')
           | id == id' = modify' (+1)
           | otherwise = pure ()
-        go id (Abs _ _ body) = go (succ id) body
+        go id (Abs _ _ body) = go (succ id) (stripAnn body)
         go id (Case c x y) =
-          go id c >>
-          go (succ id) x >>
-          go (succ id) y
+          go id (stripAnn c) >>
+          go (succ id) (stripAnn x) >>
+          go (succ id) (stripAnn y)
         go id e = traverseOf_ plate (go id) e
 
-simplify :: Expr -> Expr
+simplify :: (Data a) => Ann a (Expr a) -> Ann a (Expr a)
 simplify =
   rewrite $ \e ->
     case e of
-      (App (unannotate -> Abs _ty _name body) (unannotate -> lit@(IntLit _))) ->
+      (Ann _ (App (unannotate . stripAnn -> Abs _ty _name body) (fmap unannotate -> lit@(Ann _ (IntLit _))))) ->
         Just $ substAt (VarId 0 Nothing) lit body
-      (App (unannotate -> Abs ty _name body) (unannotate -> lit@(List _))) ->
-        Just $ substAt (VarId 0 Nothing) (lit `Annotated` ty) body
-      (App (unannotate -> Abs ty _name (Var (VarId 0 _))) arg) ->
-        Just (arg `Annotated` ty)
-      (App (unannotate -> Abs ty _name body) (unannotate -> ref@(ExternRef (ExternReference _ ty')))) ->
+      (Ann _ (App (unannotate . stripAnn -> Abs ty _name body) (fmap unannotate -> lit@(Ann a (List _))))) ->
+        Just $ substAt (VarId 0 Nothing) (Ann a (lit `Annotated` ty)) body
+      (Ann _ (App (unannotate . stripAnn -> Abs ty _name (Ann _ (Var (VarId 0 _)))) arg@(Ann a _))) ->
+        Just (Ann a (arg `Annotated` ty))
+      (Ann a (App (unannotate . stripAnn -> Abs ty _name body) (fmap unannotate -> ref@(Ann _ (ExternRef (ExternReference _ ty')))))) ->
         assert (ty == ty') $ Just $ substAt (VarId 0 Nothing) ref body
-      (App (unannotate -> Abs ty _name body) arg)
-        | countReferences (VarId 0 Nothing) body <= 1 ->
-          Just $ substAt (VarId 0 Nothing) (arg `Annotated` ty) body
+      (Ann _ (App (unannotate . stripAnn -> Abs _ty _name body) arg@(Ann a _)))
+        | countReferences (VarId 0 Nothing) (stripAnn body) <= 1 ->
+          Just (substAt (VarId 0 Nothing) arg body)
       _ -> Nothing
 
-stripLift :: Expr -> Expr
-stripLift (LiftN _ e) = stripLift e
+stripLift :: Expr a -> Expr a
+stripLift (LiftN _ e) = stripLift (stripAnn e)
 stripLift e = e
 
-stripExternLifts :: (Text -> Bool) -> Expr -> Expr
+stripExternLifts :: Data a => (Text -> Bool) -> Expr a -> Expr a
 stripExternLifts isExtern (stripLift -> ref@(ExternRef (ExternReference name _)))
   | isExtern name = ref
 stripExternLifts isExtern e = over plate (stripExternLifts isExtern) e
+
+type TypedExpr = Ann Ty (Expr Ty)

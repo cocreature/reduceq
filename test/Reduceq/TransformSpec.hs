@@ -42,7 +42,8 @@ testReducedTransform :: Text -> Text -> Expectation
 testReducedTransform original expected =
   withParseResult fileParser original $ \decls ->
     withTransformed decls $ \transformed ->
-      (displayCompact . runPprintM . pprintExpr . simplify) transformed `shouldBe`
+      (displayCompact . runPprintM . pprintExpr . stripAnn . simplify . Ann ())
+        transformed `shouldBe`
       expected
 
 transformTests :: [(Text, Text)]

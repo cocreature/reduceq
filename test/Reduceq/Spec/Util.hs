@@ -43,10 +43,10 @@ withTransformed' f original cont =
     Left err -> expectationFailure (toS (showTransformError err))
     Right transformed -> cont transformed
 
-withTransformed :: NonEmpty Imp.FunDecl -> (Coq.Expr -> Expectation) -> Expectation
-withTransformed = withTransformed' transformDecls
+withTransformed :: NonEmpty Imp.FunDecl -> (Coq.Expr () -> Expectation) -> Expectation
+withTransformed = withTransformed' (fmap Coq.stripAnn . transformDecls)
 
-withTransformedSteps :: Imp.ProgramSteps Imp.Program -> (Coq.ProgramSteps Coq.Expr -> Expectation) -> Expectation
+withTransformedSteps :: Imp.ProgramSteps Imp.Program -> (Coq.ProgramSteps (Coq.Expr ()) -> Expectation) -> Expectation
 withTransformedSteps = withTransformed' transformProgramSteps
 
 withParseResult :: (Show a, Eq a) => Parser a -> Text -> (a -> Expectation) -> Expectation
@@ -55,24 +55,24 @@ withParseResult parser input cont =
     Success result -> cont result
     Failure errInfo -> parseError errInfo
 
-withType :: Coq.Expr -> (Coq.Ty -> Expectation) -> Expectation
-withType expr cont =
+withType :: Coq.Ann () (Coq.Expr ()) -> (Coq.TypedExpr -> Expectation) -> Expectation
+withType (Coq.Ann _ expr) cont =
   case runInferM (inferType expr) of
     Left err -> (expectationFailure . toS . Coq.displayCompact . showInferError) err
     Right ty -> cont ty
 
-withStepsType :: Coq.ProgramSteps Coq.Expr -> (Coq.Ty -> Expectation) -> Expectation
+withStepsType :: Coq.ProgramSteps (Coq.Ann () (Coq.Expr ())) -> (Coq.ProgramSteps Coq.TypedExpr -> Expectation) -> Expectation
 withStepsType expr cont =
-  case runInferM (inferStepsType expr) of
+  case runInferM (inferStepsType (Coq.stripAnn <$> expr)) of
     Left err -> (expectationFailure . toS . Coq.displayCompact . showInferError) err
-    Right ty -> cont ty
+    Right expr -> cont expr
 
-withTypedReduced :: Text -> (Coq.Expr  -> Coq.Ty -> Expectation) -> Expectation
+withTypedReduced :: Text -> (Coq.TypedExpr -> Expectation) -> Expectation
 withTypedReduced input cont =
   withParseResult fileParser input $ \decls ->
     withTransformed decls $ \transformed ->
-      let reduced = Coq.simplify transformed
-      in withType reduced $ \ty -> cont reduced ty
+      let reduced = Coq.simplify (Coq.Ann () transformed)
+      in withType reduced $ \e -> cont e
 
 expectParseResult :: (Show a, Eq a) => Parser a -> Text -> a -> Expectation
 expectParseResult parser input result =

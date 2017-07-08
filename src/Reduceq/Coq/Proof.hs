@@ -1,7 +1,6 @@
 {-# LANGUAGE ViewPatterns #-}
 module Reduceq.Coq.Proof
   ( pprintExample
-  , pprintProofObligation
   , pprintProofStepsObligation
   , pprintDiff
   , pprintDiffs
@@ -14,7 +13,6 @@ module Reduceq.Coq.Proof
 import           Reduceq.Prelude
 
 import qualified Data.List.NonEmpty as NonEmpty
-import qualified Data.Map as Map
 import qualified Data.Map.Merge.Lazy as Map
 import qualified Data.Set as Set
 import           Data.Text.Prettyprint.Doc as Pretty
@@ -42,7 +40,10 @@ pprintTy ty =
 pprintApp :: Doc a -> [Doc a] -> Doc a
 pprintApp f xs = (parens . hang 2 . sep) (f : xs)
 
-pprintExpr :: Expr -> Doc a
+pprintTypedExpr :: TypedExpr -> Doc a
+pprintTypedExpr (Ann _ e) = pprintExpr e
+
+pprintExpr :: Expr Ty -> Doc a
 pprintExpr (Var id) = pprintVar id
 pprintExpr (ExternRef (ExternReference name _)) = pretty name
 pprintExpr (IntLit i) =
@@ -50,64 +51,67 @@ pprintExpr (IntLit i) =
         | i >= 0 = pretty i
         | otherwise = parens (pretty i)
   in parens ("tint" <+> lit)
-pprintExpr (App (App f x) y) =
+pprintExpr (App (stripAnn -> (App (stripAnn -> f) (stripAnn -> x))) (stripAnn -> y)) =
   pprintApp "tapp2" [pprintExpr f, pprintExpr x, pprintExpr y]
-pprintExpr (App f x) =
+pprintExpr (App (stripAnn -> f) (stripAnn -> x)) =
   pprintApp "tapp" [pprintExpr f, pprintExpr x]
-pprintExpr (Abs ty _name body) =
+pprintExpr (Abs ty _name (stripAnn -> body)) =
   parens ("tabs" <+> (align . sep) [pprintTy ty, pprintExpr body])
-pprintExpr (Case x ifL ifR) =
+pprintExpr (Case (stripAnn -> x) (stripAnn -> ifL) (stripAnn -> ifR)) =
   pprintApp "tcase" [pprintExpr x, pprintExpr ifL, pprintExpr ifR]
-pprintExpr (Fst x) = parens ("tfst" <+> pprintExpr x)
-pprintExpr (Snd x) = parens ("tsnd" <+> pprintExpr x)
-pprintExpr (Pair x y) = pprintApp "tpair" [pprintExpr x, pprintExpr y]
-pprintExpr (If cond ifTrue ifFalse) =
+pprintExpr (Fst (stripAnn -> x)) = parens ("tfst" <+> pprintExpr x)
+pprintExpr (Snd (stripAnn -> x)) = parens ("tsnd" <+> pprintExpr x)
+pprintExpr (Pair (stripAnn -> x) (stripAnn -> y)) = pprintApp "tpair" [pprintExpr x, pprintExpr y]
+pprintExpr (If (stripAnn -> cond) (stripAnn -> ifTrue) (stripAnn -> ifFalse)) =
   parens
     ("tif" <+>
      (align . sep) [pprintExpr cond, pprintExpr ifTrue, pprintExpr ifFalse])
-pprintExpr (IntBinop op x y) = parens (pprintExpr x <+> op' <+> pprintExpr y)
+pprintExpr (IntBinop op (stripAnn -> x) (stripAnn -> y)) = parens (pprintExpr x <+> op' <+> pprintExpr y)
   where
     op' =
       case op of
         IAdd -> "+"
         ISub -> "-"
         IMul -> "*"
-pprintExpr (IntComp comp x y) =
+pprintExpr (IntComp comp (stripAnn -> x) (stripAnn -> y)) =
   parens (pprintExpr x <+> comp' <+> pprintExpr y)
   where comp' = case comp of
           IEq -> "="
           ILt -> "<"
           IGt -> ">"
-pprintExpr (Iter f x) = parens ("titer" <+> (align . sep) [pprintExpr f, pprintExpr x])
-pprintExpr (Inl x) =
+pprintExpr (Iter f x) =
+  parens
+    ("titer" <+>
+     (align . sep) [pprintExpr (stripAnn f), pprintExpr (stripAnn x)])
+pprintExpr (Inl (stripAnn -> x)) =
   parens ("tinl" <+> pprintExpr x)
-pprintExpr (Inr x) =
+pprintExpr (Inr (stripAnn -> x)) =
   parens ("tinr" <+> pprintExpr x)
-pprintExpr (Set arr index val) =
+pprintExpr (Set (stripAnn -> arr) (stripAnn -> index) (stripAnn -> val)) =
   parens
     ("twrite" <+>
      (align . sep) [pprintExpr arr, pprintExpr index, pprintExpr val])
-pprintExpr (SetAtKey arr key val) =
+pprintExpr (SetAtKey (stripAnn -> arr) (stripAnn -> key) (stripAnn -> val)) =
   pprintApp "twrite_at_key" [pprintExpr arr, pprintExpr key, pprintExpr val]
-pprintExpr (Read arr index) =
+pprintExpr (Read (stripAnn -> arr) (stripAnn -> index)) =
   parens ("tread" <+> pprintExpr arr <+> pprintExpr index)
-pprintExpr (ReadAtKey arr key) =
+pprintExpr (ReadAtKey (stripAnn -> arr) (stripAnn -> key)) =
   pprintApp "tread_at_key" [pprintExpr arr, pprintExpr key]
 pprintExpr Unit = "tunit"
-pprintExpr (Annotated e _) = pprintExpr e
-pprintExpr (Map f xs) =
+pprintExpr (Annotated e _) = pprintExpr (stripAnn e)
+pprintExpr (Map (stripAnn -> f) (stripAnn -> xs)) =
   pprintApp "tmap" [pprintExpr f, pprintExpr xs]
-pprintExpr (Group xs) =
+pprintExpr (Group (stripAnn -> xs)) =
   parens ("tgroup" <+> pprintExpr xs)
 pprintExpr (Fold f i xs) =
-  pprintApp "tfold" [pprintExpr f, pprintExpr i, pprintExpr xs]
-pprintExpr (Concat xss) = parens ("tconcat" <+> pprintExpr xss)
-pprintExpr (List xs) = parens ("tlist" <+> list (map pprintExpr xs))
-pprintExpr (Length xs) = parens ("tlength" <+> pprintExpr xs)
-pprintExpr (Range a b c) = parens ("trange" <+> (align . sep . map pprintExpr) [a,b,c])
+  pprintApp "tfold" [pprintExpr (stripAnn f), pprintExpr (stripAnn i), pprintExpr (stripAnn xs)]
+pprintExpr (Concat xss) = parens ("tconcat" <+> pprintExpr (stripAnn xss))
+pprintExpr (List xs) = parens ("tlist" <+> list (map (pprintExpr . stripAnn) xs))
+pprintExpr (Length xs) = parens ("tlength" <+> pprintExpr (stripAnn xs))
+pprintExpr (Range a b c) = parens ("trange" <+> (align . sep . map (pprintExpr . stripAnn)) [a,b,c])
 pprintExpr (Replicate count val) =
-  parens ("treplicate" <+> (align . sep) [pprintExpr count, pprintExpr val])
-pprintExpr (LiftN n e) = pprintExpr e <> ".[ren (+" <> pretty n <> ")]"
+  parens ("treplicate" <+> (align . sep) [pprintExpr (stripAnn count), pprintExpr (stripAnn val)])
+pprintExpr (LiftN n e) = pprintExpr (stripAnn e) <> ".[ren (+" <> pretty n <> ")]"
 
 pprintTypingJudgment :: Text -> [ExternReference] -> Ty -> Doc a
 pprintTypingJudgment name externRefs ty =
@@ -129,7 +133,7 @@ forallExtern externRefs doc
   where
     refParams = hsep (map (pretty . refName) externRefs)
 
-pprintTypingLemma :: Text -> Expr -> Ty -> Doc a
+pprintTypingLemma :: Text -> Expr Ty -> Ty -> Doc a
 pprintTypingLemma name expr ty = vsep [lemmaIntro, indent 2 body, proof]
   where
     lemmaIntro = "Lemma" <+> pretty name <> "_typing" <+> ":"
@@ -147,7 +151,7 @@ hsep' docs
   | null docs = mempty
   | otherwise = space <> hsep docs
 
-pprintExprDefinition :: Text -> Expr -> Doc a
+pprintExprDefinition :: Text -> Expr Ty -> Doc a
 pprintExprDefinition name expr =
   (hang 2 . sep)
     [ "Definition" <+> pretty name <> parameters <+> ":="
@@ -167,6 +171,7 @@ coqImports =
     localImports =
       hsep
         [ "Determinism"
+        , "Equality"
         , "Misc"
         , "Notations"
         , "Preservation"
@@ -179,7 +184,7 @@ coqImports =
         , "Util"
         ]
 
-pprintExample :: Expr -> Ty -> Doc a
+pprintExample :: Expr Ty -> Ty -> Doc a
 pprintExample expr ty =
   vsep
     (coqImports ++
@@ -222,12 +227,15 @@ strictUnion = Map.mergeA Map.preserveMissing Map.preserveMissing whenMatched
              then Right v
              else Left (MatchError k v v'))
 
-pprintEquivalentTheorem :: (Text -> Bool) -> [Expr] -> Text -> ProgramSteps Expr -> Either PprintError (Doc a)
-pprintEquivalentTheorem isExtern argRefs name steps = do
+pprintEquivalentTheorem :: Ty -> (Text -> Bool) -> [TypedExpr] -> Text -> ProgramSteps TypedExpr -> Either PprintError (Doc a)
+pprintEquivalentTheorem ty isExtern argRefs name steps = do
   let (ProgramSteps initial' steps' final') =
-        (stripExternLifts isExtern . instantiateExpr) <$> steps
+        (fmap (stripExternLifts isExtern) . instantiateExpr) <$> steps
       body =
-        pprintApp "equivalent" [pprintExpr initial', pprintExpr final'] <> "."
+        pprintApp
+          ("equivalent" <+> "empty_ctx" <+> pprintTy ty)
+          [pprintTypedExpr initial', pprintTypedExpr final'] <>
+        "."
   pure
     (vsep
        [ "Theorem" <+> pretty name <+> colon
@@ -240,104 +248,30 @@ pprintEquivalentTheorem isExtern argRefs name steps = do
                [ pprintDiff
                    isExtern
                    (pruneDiff (diff (NonEmpty.last (initial' :| steps')) final'))
-               , "admit."
                ]))
        , "Admitted."
        ])
   where
-    stepTo :: Expr -> Expr -> Doc a
+    stepTo :: TypedExpr -> TypedExpr -> Doc a
     stepTo from to =
       vsep
         [ "assert_step_to"
-        , indent 2 (pprintExpr to <> ".")
+        , indent 2 (pprintTypedExpr to <> ".")
         , indent
             2
             (lbrace <> indent 1 (pprintDiff isExtern (pruneDiff (diff from to))) <>
              line <>
              rbrace)
         ]
-    instantiateExpr :: Expr -> Expr
+    instantiateExpr :: TypedExpr -> TypedExpr
     instantiateExpr e = foldl' (\expr arg -> instantiate arg expr) e argRefs
-
-pprintEquivalence :: Text -> (Expr, Ty) -> (Expr, Ty) -> Either PprintError (Doc a)
-pprintEquivalence _ (_, ty) (_, ty')
-  | ty /= ty' = Left (PprintTypeMismatch ty ty')
-pprintEquivalence name (imperative, ty) (mapreduce, _) = do
-  externRefs <-
-    bimap
-      DifferentExternalRefTys
-      (map (uncurry ExternReference) . Map.toList)
-      (strictUnion imperativeRefs mapreduceRefs)
-  let assumptions = map pprintExternRefTyAssm externRefs
-      equivalence =
-        (hang 2 . sep)
-          ((coqForall <+> hsep argNames <+> "final,") :
-           argTyAssumptions ++
-           [ pprintStep "imperative" imperative "final" <+> "->"
-           , pprintStep "mapreduce" mapreduce "final" <> "."
-           ])
-      body = forallExtern externRefs (vsep (assumptions ++ [equivalence]))
-  Right (vsep ["Lemma" <+> pretty name <+> colon, indent 2 body, "Admitted."])
-  where
-    imperativeRefs = refMap imperative
-    mapreduceRefs = refMap mapreduce
-    pprintStep :: Text -> Expr -> Text -> Doc a
-    pprintStep name' expr to' =
-      pprintApp
-        "bigstep"
-        [ pprintApp
-            "tapp"
-            [ pprintApp
-                (pretty name')
-                (map (pretty . refName) (collectExternReferences expr))
-            , hsep argNames
-            ]
-        , pretty to'
-        ]
-    argTyAssumptions :: [Doc a]
-    argTyAssumptions =
-      zipWith
-        (\ty' i -> pprintTypingJudgment ("arg" <> show i) [] ty' <+> "->")
-        argTys
-        [1 :: Int ..]
-    argTys :: [Ty]
-    argTys =
-      let argTys' (TyFun dom cod) = dom : argTys' cod
-          argTys' _ = []
-      in argTys' ty
-    argNames :: [Doc a]
-    argNames = map (\i -> "arg" <> pretty i) [1 .. numArgs]
-    numArgs :: Int
-    numArgs = length argTys
-    refMap =
-      Map.fromList .
-      map (\(ExternReference n t) -> (n, t)) . collectExternReferences
-
-pprintProofObligation :: (Expr, Ty) -> (Expr, Ty) -> Either PprintError (Doc a)
-pprintProofObligation (imperative, imperativeTy) (mapreduce, mapreduceTy) = do
-  equivalence <-
-    pprintEquivalence
-      "equivalence"
-      (imperative, imperativeTy)
-      (mapreduce, mapreduceTy)
-  pure
-    (vsep
-       (coqImports ++
-        [ pprintExprDefinition "imperative" imperative
-        , pprintExprDefinition "mapreduce" mapreduce
-        , pprintTypingLemma "imperative" imperative imperativeTy
-        , pprintTypingLemma "mapreduce" mapreduce mapreduceTy
-        , equivalence
-        , mempty
-        ]))
-
 
 nub :: Ord a => [a] -> [a]
 nub = Set.toList . Set.fromList
 
-pprintExternRefs :: ProgramSteps Expr -> Either PprintError ([Doc a], Text -> Bool)
+pprintExternRefs :: ProgramSteps TypedExpr -> Either PprintError ([Doc a], Text -> Bool)
 pprintExternRefs steps =
-  let refs = nub (collectExternReferences =<< (toList steps))
+  let refs = nub (collectExternReferences =<< (stripAnn <$> toList steps))
       pprintExternRef (ExternReference name ty) = pprintExternVar name ty
   in pure
        ( pprintExternRef =<< refs
@@ -354,32 +288,33 @@ pprintExternVar name ty =
     pretty name <> "_val" <+> colon <+> "value" <+> pretty name <> dot
   ]
 
-pprintArgRefs :: ProgramSteps Expr -> Ty -> ([Expr], [Doc a], Text -> Bool)
-pprintArgRefs steps ty =
-  ( zipWith (\name ty' -> ExternRef (ExternReference name ty')) argNames argTys
+pprintArgRefs :: ProgramSteps TypedExpr -> [Ty] -> ([TypedExpr], [Doc a], Text -> Bool)
+pprintArgRefs steps argTys =
+  ( zipWith (\name ty' -> Ann ty' (ExternRef (ExternReference name ty'))) argNames argTys
   , concat (zipWith pprintExternVar argNames argTys)
   , (`Set.member` Set.fromList argNames))
   where
-    argTys :: [Ty]
-    argTys =
-      let argTys' (TyFun dom cod) = dom : argTys' cod
-          argTys' _ = []
-      in argTys' ty
     argNames :: [Text]
     argNames =
-      let argNames' (unannotate -> Abs _ name' body) = name' : argNames' body
+      let argNames' (unannotate . stripAnn -> Abs _ name' body) = name' : argNames' body
           argNames' _ = []
       in zipWith
            (\def varId -> fromMaybe def (fmap getVarId varId))
            (map (\i -> "arg" <> show i) [1 :: Int ..])
            (argNames' (imperativeProgram steps))
 
-pprintProofStepsObligation :: ProgramSteps Expr -> Ty -> Either PprintError (Doc a)
-pprintProofStepsObligation steps ty = do
+splitFunTy :: Ty -> ([Ty], Ty)
+splitFunTy (TyFun dom cod) = first (dom :) (splitFunTy cod)
+splitFunTy t = ([], t)
+
+pprintProofStepsObligation :: ProgramSteps TypedExpr -> Either PprintError (Doc a)
+pprintProofStepsObligation steps@(ProgramSteps (Ann ty _) _ _) = do
+  let (argTys, ranTy) = splitFunTy ty
   (externRefs, isExtern) <- pprintExternRefs steps
-  let (argRefs, argAssumptions, isArg) = pprintArgRefs steps ty
+  let (argRefs, argAssumptions, isArg) = pprintArgRefs steps argTys
   equivalent <-
     pprintEquivalentTheorem
+      ranTy
       (\n -> isExtern n || isArg n)
       argRefs
       "equivalent"
@@ -392,59 +327,62 @@ pprintProofStepsObligation steps ty = do
         ("(* arguments *)" : argAssumptions) ++ ["", equivalent, "End proof."]))
 
 
-pprintDiff :: (Text -> Bool) -> Diff Expr -> Doc a
+pprintDiff :: (Text -> Bool) -> Diff TypedExpr -> Doc a
 pprintDiff isExtern = pprintDiff' isExtern 0
 
-inEqFun :: Text -> Expr -> Expr -> Doc a -> Doc a
+inEqFun :: Text -> Expr Ty -> Expr Ty -> Doc a -> Doc a
 inEqFun arg f g doc =
   vsep
     [ "assert" <+>
-      parens
-        ("HEq" <+>
-         colon <+>
-         "equivalent_fun" <+> (align . vsep) [pprintExpr f, pprintExpr g]) <>
+      parens ("equivalent_fun" <+> (align . vsep) [pprintExpr f, pprintExpr g]) <>
       dot
     , braces
         (indent 2 $
          align $
          (vsep
-            [ "intro_eq_fun_abs'" <+> pretty arg <> "."
+            [ "intro_eq_fun_abs" <+> pretty arg <> "."
             , "repeat simpl_noop_subst."
             , doc
             ] <>
           line))
-    , "rewrite HEq."
-    , "reflexivity."
+    , "admit."
     ]
 
+pprintMor :: Morphism -> Doc a
+pprintMor MFst = "tfst_mor"
+pprintMor MSnd = "tsnd_mor"
+
 -- | The integer indicates how many binders we have already traversed
-pprintDiff' :: (Text -> Bool) -> Int -> Diff Expr -> Doc a
+pprintDiff' :: (Text -> Bool) -> Int -> Diff TypedExpr -> Doc a
 pprintDiff' _isExtern _ Equal = mempty
-pprintDiff' _isExtern _ (Different x y) =
+pprintDiff' _isExtern _ (Different x y t) =
   vsep
     [ "assert" <+>
       parens
-        ("HEq" <+>
-         colon <+> "equivalent" <+> (align . vsep) [pprintExpr x, pprintExpr y]) <>
+        (vcat
+           [ "equivalent empty_ctx" <+> pprintTy t
+           , indent 2 $ (align . vsep) [pprintTypedExpr x, pprintTypedExpr y]
+           ]) <>
       dot
     , (align . vcat) [lbrace <+> "admit.", rbrace]
-    , "rewrite HEq."
-    , "reflexivity."
     ]
-pprintDiff' isExtern !i (DifferentFun f g ty d) =
+pprintDiff' isExtern !i (DifferentFun f g dom _ran d) =
   inEqFun
     arg
-    f
-    g
+    (stripAnn f)
+    (stripAnn g)
     (pprintDiff'
        isExtern
        (i + 1)
-       (stripExternLifts isExtern <$>
-        substInDiff (VarId 0 Nothing) (ExternRef (ExternReference arg ty)) d))
+       (fmap (stripExternLifts isExtern) <$>
+        substInDiff (VarId 0 Nothing) (Ann dom (ExternRef (ExternReference arg dom))) d))
   where
     arg = "arg" <> show i
-pprintDiff' isExtern !i (DifferentArgs args) =
-  vcat (map (pprintDiff' isExtern i) args)
+pprintDiff' isExtern !i (DifferentMor mor args) =
+  vcat
+    (map (pprintDiff' isExtern i) args ++
+     ["eapply" <+> pprintMor mor <> "; trivial_rewrite || eauto."])
 
-pprintDiffs :: (Text -> Bool) -> [Diff Expr] -> Doc a
+
+pprintDiffs :: (Text -> Bool) -> [Diff TypedExpr] -> Doc a
 pprintDiffs isExtern = cat . punctuate (line <> "---" <> line) . map (pprintDiff isExtern)

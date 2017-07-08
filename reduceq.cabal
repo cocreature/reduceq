@@ -50,10 +50,12 @@ library
                      , DeriveFoldable
                      , DeriveFunctor
                      , DeriveTraversable
+                     , FlexibleContexts
                      , GeneralizedNewtypeDeriving
                      , NamedFieldPuns
                      , NoImplicitPrelude
                      , OverloadedStrings
+                     , StandaloneDeriving
                      , TypeApplications
   ghc-options:         -Wall
 

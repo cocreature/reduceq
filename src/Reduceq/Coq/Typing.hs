@@ -1,3 +1,4 @@
+{-# LANGUAGE ViewPatterns #-}
 module Reduceq.Coq.Typing
   ( inferType
   , inferStepsType
@@ -33,7 +34,7 @@ runInferM (InferM x) = runReader (runExceptT x) Map.empty
 data InferError
   = TypeMismatch Ty
                  Ty
-  | ErrorIn Expr
+  | ErrorIn (Expr Ty)
             InferError
   | UnboundVariable VarId
   | AmbigousType Text
@@ -76,10 +77,10 @@ enterLiftN n =
 withBoundVar :: Ty -> InferM a -> InferM a
 withBoundVar ty = local (Map.insert (VarId 0 Nothing) ty . shiftVarMap)
 
-guardTyEqualIn :: Expr -> Ty -> Ty -> InferM Ty
+guardTyEqualIn :: Expr Ty -> Ty -> Ty -> InferM TypedExpr
 guardTyEqualIn e ty1 ty2 =
   if ty1 == ty2
-    then pure ty1
+    then pure (Ann ty1 e)
     else throwError (ErrorIn e (TypeMismatch ty1 ty2))
 
 guardTyEqual :: Ty -> Ty -> InferM Ty
@@ -95,261 +96,277 @@ varTy id = do
     Nothing -> throwError (UnboundVariable id)
     Just ty' -> pure ty'
 
-checkType :: Expr -> Ty -> InferM Ty
+checkType :: Expr () -> Ty -> InferM TypedExpr
 checkType (Var id) ty = do
   ty' <- varTy id
   guardTyEqualIn (Var id) ty ty'
-checkType (ExternRef (ExternReference _ ty')) ty = guardTyEqual ty' ty
-checkType lit@(IntLit _) ty = guardTyEqualIn lit ty TyInt
-checkType (App f x) ty = do
-  argTy <- inferType x
-  _ <- checkType f (TyFun argTy ty)
-  pure ty
-checkType (Abs codTy _name body) ty =
+checkType (ExternRef (ExternReference name ty')) ty =
+  guardTyEqual ty' ty >> pure (Ann ty' (ExternRef (ExternReference name ty')))
+checkType (IntLit i) ty = guardTyEqualIn (IntLit i) ty TyInt
+checkType (App (stripAnn -> f) (stripAnn -> x)) ran = do
+  x'@(Ann dom _) <- inferType x
+  f' <- checkType f (TyFun dom ran)
+  pure (Ann ran (App f' x'))
+checkType (Abs codTy name body) ty =
   case ty of
     TyFun codTy' domTy -> do
       _ <- guardTyEqual codTy' codTy
-      _ <- withBoundVar codTy (checkType body domTy)
-      pure ty
+      body' <- withBoundVar codTy (checkType (stripAnn body) domTy)
+      pure (Ann ty (Abs codTy name body'))
     ty' -> throwError (ExpectedFunction ty')
 checkType (Case x ifL ifR) ty = do
-  argTy <- inferType x
+  x'@(Ann argTy _) <- inferType (stripAnn x)
   case argTy of
     TySum tyL tyR -> do
-      _ <- withBoundVar tyL (checkType ifL ty)
-      _ <- withBoundVar tyR (checkType ifR ty)
-      pure ty
+      ifL' <- withBoundVar tyL (checkType (stripAnn ifL) ty)
+      ifR' <- withBoundVar tyR (checkType (stripAnn ifR) ty)
+      pure (Ann ty (Case x' ifL' ifR'))
     ty' -> throwError (ExpectedSum ty')
-checkType (Fst a) ty = do
-  tyProd <- inferType a
+checkType (Fst (stripAnn -> a)) ty = do
+  a'@(Ann tyProd _) <- inferType a
   case tyProd of
-    TyProd tyFst _ -> guardTyEqual tyFst ty
+    TyProd tyFst _ -> guardTyEqual tyFst ty >> pure (Ann ty (Fst a'))
     _ -> throwError (ExpectedProd tyProd)
-checkType (Snd a) ty = do
-  tyProd <- inferType a
+checkType (Snd (stripAnn -> a)) ty = do
+  a'@(Ann tyProd _) <- inferType a
   case tyProd of
-    TyProd _ tySnd -> guardTyEqual tySnd ty
+    TyProd _ tySnd -> guardTyEqual tySnd ty >> pure (Ann ty (Snd a'))
     _ -> throwError (ExpectedProd tyProd)
-checkType (Pair a b) ty = do
+checkType (Pair (stripAnn -> a) (stripAnn -> b)) ty = do
   case ty of
     TyProd tyA tyB -> do
-      _ <- checkType a tyA
-      _ <- checkType b tyB
-      pure ty
+      a' <- checkType a tyA
+      b' <- checkType b tyB
+      pure (Ann ty (Pair a' b'))
     _ -> throwError (ExpectedProd ty)
-checkType (Inl a) ty =
+checkType (Inl (stripAnn -> a)) ty =
   case ty of
-    TySum tyL _ -> checkType a tyL *> pure ty
+    TySum tyL _ -> checkType a tyL >>= \a' -> pure (Ann ty (Inl a'))
     _ -> throwError (ExpectedSum ty)
-checkType (Inr a) ty =
+checkType (Inr (stripAnn -> a)) ty =
   case ty of
-    TySum _ tyR -> checkType a tyR *> pure ty
+    TySum _ tyR -> checkType a tyR >>= \a' ->  pure (Ann ty (Inr a'))
     _ -> throwError (ExpectedSum ty)
-checkType (If cond ifTrue ifFalse) ty = do
-  _ <- checkType cond TyBool
-  _ <- checkType ifTrue ty
-  _ <- checkType ifFalse ty
-  pure ty
-checkType (IntBinop _ x y) ty = do
+checkType (If (stripAnn -> cond) (stripAnn -> ifTrue) (stripAnn -> ifFalse)) ty = do
+  cond' <- checkType cond TyBool
+  ifTrue' <- checkType ifTrue ty
+  ifFalse' <- checkType ifFalse ty
+  pure (Ann ty (If cond' ifTrue' ifFalse'))
+checkType (IntBinop op (stripAnn -> x) (stripAnn -> y)) ty = do
   _ <- guardTyEqual ty TyInt
-  _ <- checkType x TyInt
-  _ <- checkType y TyInt
-  pure TyInt
-checkType (IntComp _ x y) ty = do
+  x' <- checkType x TyInt
+  y' <- checkType y TyInt
+  pure (Ann ty (IntBinop op x' y'))
+checkType (IntComp comp (stripAnn -> x) (stripAnn -> y)) ty = do
   _ <- guardTyEqual ty TyBool
-  _ <- checkType x TyInt
-  _ <- checkType y TyInt
-  pure TyInt
-checkType (Iter loop init) ty = do
-  _ <- checkType init ty
-  _ <- checkType loop (TyFun ty (TySum TyUnit ty))
-  pure ty
-checkType (Set arr index val) ty =
+  x' <- checkType x TyInt
+  y' <- checkType y TyInt
+  pure (Ann TyInt (IntComp comp x' y'))
+checkType (Iter (stripAnn -> loop) (stripAnn -> init)) ty = do
+  init' <- checkType init ty
+  loop' <- checkType loop (TyFun ty (TySum TyUnit ty))
+  pure (Ann ty (Iter init' loop'))
+checkType (Set (stripAnn -> arr) (stripAnn -> index) (stripAnn -> val)) ty =
   case ty of
     TyArr tyVal -> do
-      _ <- checkType arr ty
-      _ <- checkType index TyInt
-      _ <- checkType val tyVal
-      pure ty
+      arr' <- checkType arr ty
+      index' <- checkType index TyInt
+      val' <- checkType val tyVal
+      pure (Ann ty (Set arr' index' val'))
     _ -> throwError (ExpectedArr ty)
-checkType (SetAtKey arr key val) ty =
+checkType (SetAtKey (stripAnn -> arr) (stripAnn -> key) (stripAnn -> val)) ty =
   case ty of
     TyArr (TyProd tyKey tyVal) -> do
-      _ <- checkType arr ty
-      _ <- checkType key tyKey
-      _ <- checkType val tyVal
-      pure ty
+      arr' <- checkType arr ty
+      key' <- checkType key tyKey
+      val' <- checkType val tyVal
+      pure (Ann ty (SetAtKey arr' key' val'))
     _ -> throwError (ExpectedArr ty)
-checkType (Read arr index) ty = do
-  _ <- checkType arr (TyArr ty)
-  _ <- checkType index TyInt
-  pure ty
-checkType (ReadAtKey arr key) ty = do
-  tyKey <- inferType key
-  _ <- checkType arr (TyProd tyKey ty)
-  pure (TySum TyUnit ty)
-checkType Unit ty = guardTyEqual ty TyUnit
+checkType (Read (stripAnn -> arr) (stripAnn -> index)) ty = do
+  arr' <- checkType arr (TyArr ty)
+  index' <- checkType index TyInt
+  pure (Ann ty (Read arr' index'))
+checkType (ReadAtKey (stripAnn -> arr) (stripAnn -> key)) ty = do
+  key'@(Ann tyKey _) <- inferType key
+  arr' <- checkType arr (TyProd tyKey ty)
+  pure (Ann ty (ReadAtKey arr' key'))
+checkType Unit ty = guardTyEqualIn Unit ty TyUnit
 checkType (Annotated e ty') ty = do
   _ <- guardTyEqual ty' ty
-  checkType e ty
-checkType (List xs) ty =
+  checkType (stripAnn e) ty
+checkType (List (map stripAnn -> xs)) ty =
   case ty of
-    TyArr tyEl ->
-      ty <$ traverse_ (`checkType` tyEl) xs
+    TyArr tyEl -> do
+      xs' <- traverse (`checkType` tyEl) xs
+      pure (Ann ty (List xs'))
     _ -> throwError (ExpectedArr ty)
-checkType (Fold f x xs) ty = do
-  _ <- checkType x ty
-  fTy <- inferType f
+checkType (Fold (stripAnn -> f) (stripAnn -> x) (stripAnn -> xs)) ty = do
+  x' <- checkType x ty
+  f'@(Ann fTy _) <- inferType f
   case fTy of
     TyFun (TyProd tyAcc tyEl) tyAcc' -> do
       _ <- guardTyEqual tyAcc tyAcc'
       _ <- guardTyEqual tyAcc ty
-      _ <- checkType xs (TyArr tyEl)
-      pure tyAcc
+      xs' <- checkType xs (TyArr tyEl)
+      pure (Ann ty (Fold f' x' xs'))
     _ -> throwError (ExpectedFunction fTy)
-checkType (LiftN n e) ty = enterLiftN n (checkType e ty)
-checkType (Replicate count val) ty =
+checkType (LiftN n e) ty = enterLiftN n (checkType (stripAnn e) ty)
+checkType (Replicate (stripAnn -> count) (stripAnn -> val)) ty =
   case ty of
     TyArr tyVal -> do
-      _ <- checkType count TyInt
-      _ <- checkType val tyVal
-      pure ty
+      count' <- checkType count TyInt
+      val' <- checkType val tyVal
+      pure (Ann ty (Replicate count' val'))
     _ -> throwError (ExpectedArr ty)
 checkType e ty = do
-  tyE <- inferType e
-  guardTyEqualIn e tyE ty
+  (Ann tyE e') <- inferType e
+  guardTyEqualIn e' tyE ty
 
-inferType :: Expr -> InferM Ty
-inferType (Var id) = varTy id
-inferType (ExternRef (ExternReference _ ty)) = pure ty
-inferType (IntLit _) = pure TyInt
-inferType (App f x) = do
-  funTy <- inferType f
+inferType :: Expr () -> InferM TypedExpr
+inferType (Var id) = do
+  ty <- varTy id
+  pure (Ann ty (Var id))
+inferType (ExternRef (ExternReference name ty)) = pure (Ann ty (ExternRef (ExternReference name ty)))
+inferType (IntLit i) = pure (Ann TyInt (IntLit i))
+inferType (App (stripAnn -> f) (stripAnn -> x)) = do
+  f'@(Ann funTy _) <- inferType f
   case funTy of
-    TyFun cod dom ->
-      checkType x cod *> pure dom
+    TyFun dom ran -> do
+      x' <- checkType x dom
+      pure (Ann ran (App f' x'))
     ty -> throwError (ExpectedFunction ty)
-inferType (Abs codTy _name body) = do
-  domTy <- withBoundVar codTy (inferType body)
-  pure (TyFun codTy domTy)
-inferType (Case x ifL ifR) = do
-  tyX <- inferType x
+inferType (Abs dom name (stripAnn -> body)) = do
+  body'@(Ann ran _) <- withBoundVar dom (inferType body)
+  pure (Ann (TyFun dom ran) (Abs dom name body'))
+inferType (Case (stripAnn -> x) (stripAnn -> ifL) (stripAnn -> ifR)) = do
+  x'@(Ann tyX _) <- inferType x
   case tyX of
     TySum tyL tyR -> do
-      tyIfL <- withBoundVar tyL (inferType ifL)
-      tyIfR <- withBoundVar tyR (inferType ifR)
-      guardTyEqual tyIfL tyIfR
+      ifL'@(Ann tyIfL _) <- withBoundVar tyL (inferType ifL)
+      ifR'@(Ann tyIfR _) <- withBoundVar tyR (inferType ifR)
+      _ <- guardTyEqual tyIfL tyIfR
+      pure (Ann tyIfL (Case x' ifL' ifR'))
     _ -> throwError (ExpectedSum tyX)
 inferType (Fst a) = do
-  ty <- inferType a
+  a'@(Ann ty _) <- inferType (stripAnn a)
   case ty of
-    TyProd ty' _ -> pure ty'
+    TyProd ty' _ -> pure (Ann ty' (Fst a'))
     _ -> throwError (ExpectedProd ty)
 inferType (Snd a) = do
-  ty <- inferType a
+  a'@(Ann ty _) <- inferType (stripAnn a)
   case ty of
-    TyProd _ ty' -> pure ty'
+    TyProd _ ty' -> pure (Ann ty' (Snd a'))
     _ -> throwError (ExpectedProd ty)
-inferType (Pair a b) = TyProd <$> inferType a <*> inferType b
+inferType (Pair a b) = do
+  a'@(Ann tyA _) <- inferType (stripAnn a)
+  b'@(Ann tyB _) <- inferType (stripAnn b)
+  pure (Ann (TyProd tyA tyB) (Pair a' b'))
 inferType (Inl _) = throwError (AmbigousType "Cannot infer the type of `inl`.")
 inferType (Inr _) = throwError (AmbigousType "Cannot infer the type of `inr`.")
-inferType (If cond ifTrue ifFalse) = do
-  _ <- checkType cond TyBool
-  ty1 <- inferType ifTrue
-  ty2 <- inferType ifFalse
-  guardTyEqual ty1 ty2
-inferType (IntBinop _ x y) = do
-  _ <- checkType x TyInt
-  _ <- checkType y TyInt
-  pure TyInt
-inferType (IntComp _ x y) = do
-  _ <- checkType x TyInt
-  _ <- checkType y TyInt
-  pure TyBool
-inferType (Iter loop init) = do
-  ty <- inferType init
-  _ <- checkType loop (TyFun ty (TySum TyUnit ty))
-  pure ty
-inferType (Set arr index val) = do
-  _ <- checkType index TyInt
-  tyVal <- inferType val
-  checkType arr (TyArr tyVal)
-inferType (SetAtKey arr key val) = do
-  keyTy <- inferType key
-  valTy <- inferType val
-  checkType arr (TyArr (TyProd keyTy valTy))
-inferType (Read arr index) = do
-  _ <- checkType index TyInt
-  tyArr <- inferType arr
+inferType (If (stripAnn -> cond) (stripAnn -> ifTrue) (stripAnn -> ifFalse)) = do
+  cond' <- checkType cond TyBool
+  ifTrue'@(Ann ty1 _) <- inferType ifTrue
+  ifFalse'@(Ann ty2 _) <- inferType ifFalse
+  _ <- guardTyEqual ty1 ty2
+  pure (Ann ty1 (If cond' ifTrue' ifFalse'))
+inferType (IntBinop op (stripAnn -> x) (stripAnn -> y)) = do
+  x' <- checkType x TyInt
+  y' <- checkType y TyInt
+  pure (Ann TyInt (IntBinop op x' y'))
+inferType (IntComp comp x y) = do
+  x' <- checkType (stripAnn x) TyInt
+  y' <- checkType (stripAnn y) TyInt
+  pure (Ann TyBool (IntComp comp x' y'))
+inferType (Iter (stripAnn -> loop) (stripAnn -> init)) = do
+  init'@(Ann ty _) <- inferType init
+  loop' <- checkType loop (TyFun ty (TySum TyUnit ty))
+  pure (Ann ty (Iter init' loop'))
+inferType (Set (stripAnn -> arr) (stripAnn -> index) (stripAnn -> val)) = do
+  index' <- checkType index TyInt
+  val'@(Ann tyVal _) <- inferType val
+  arr' <- checkType arr (TyArr tyVal)
+  pure (Ann (TyArr tyVal) (Set arr' index' val'))
+inferType (SetAtKey (stripAnn -> arr) (stripAnn -> key) (stripAnn -> val)) = do
+  key'@(Ann keyTy _) <- inferType key
+  val'@(Ann valTy _) <- inferType val
+  let ty = TyArr (TyProd keyTy valTy)
+  arr' <- checkType arr ty
+  pure (Ann ty (SetAtKey arr' key' val'))
+inferType (Read (stripAnn -> arr) (stripAnn -> index)) = do
+  index' <- checkType index TyInt
+  arr'@(Ann tyArr _) <- inferType arr
   case tyArr of
-    TyArr tyVal -> pure tyVal
+    TyArr tyVal -> pure (Ann tyVal (Read arr' index'))
     ty -> throwError (ExpectedArr ty)
-inferType (ReadAtKey arr key) = do
-  tyArr <- inferType arr
+inferType (ReadAtKey (stripAnn -> arr) (stripAnn -> key)) = do
+  arr'@(Ann tyArr _) <- inferType arr
   case tyArr of
     TyArr (TyProd tyKey tyVal) -> do
-      _ <- checkType key tyKey
-      pure (TySum TyUnit tyVal)
+      key' <- checkType key tyKey
+      pure (Ann (TySum TyUnit tyVal) (ReadAtKey arr' key'))
     _ -> throwError (ExpectedArr tyArr)
-inferType Unit = pure TyUnit
-inferType (Annotated e ty) = checkType e ty
+inferType Unit = pure (Ann TyUnit Unit)
+inferType (Annotated e ty) = checkType (stripAnn e) ty
 inferType (Map f xs) = do
-  tyF <- inferType f
+  f'@(Ann tyF _) <- inferType (stripAnn f)
   case tyF of
-    TyFun tyDom tyCod -> checkType xs (TyArr tyDom) *> pure (TyArr tyCod)
+    TyFun tyDom tyCod -> checkType (stripAnn xs) (TyArr tyDom) >>= \xs' -> pure (Ann (TyArr tyCod) (Map f' xs'))
     _ -> throwError (ExpectedFunction tyF)
 inferType (Group xs) = do
-  tyXs <- inferType xs
+  xs'@(Ann tyXs _) <- inferType (stripAnn xs)
   case tyXs of
     TyArr argTy ->
       case argTy of
-        TyProd tyK tyV -> pure (TyArr (TyProd tyK (TyArr tyV)))
+        TyProd tyK tyV -> pure (Ann (TyArr (TyProd tyK (TyArr tyV))) (Group xs'))
         _ -> throwError (ExpectedProd argTy)
     _ -> throwError (ExpectedArr tyXs)
 inferType (Fold f i xs) = do
-  tyF <- inferType f
-  tyI <- inferType i
+  f'@(Ann tyF _) <- inferType (stripAnn f)
+  i'@(Ann tyI _) <- inferType (stripAnn i)
   case tyF of
     TyFun (TyProd tyAcc tyX) dom
       | dom == tyAcc ->
-        checkType xs (TyArr tyX) *> guardTyEqualIn i tyI tyAcc *> pure tyAcc
+        checkType (stripAnn xs) (TyArr tyX) >>= \xs' ->
+          guardTyEqual tyI tyAcc *> pure (Ann tyAcc (Fold f' i' xs'))
     _ -> throwError (ExpectedFunction tyF)
 inferType (Concat xss) = do
-  tyXss <- inferType xss
+  xss'@(Ann tyXss _) <- inferType (stripAnn xss)
   case tyXss of
     TyArr tyXs ->
       case tyXs of
-        TyArr _ -> pure tyXs
+        TyArr _ -> pure (Ann tyXs (Concat xss'))
         _ -> throwError (ExpectedArr tyXs)
     _ -> throwError (ExpectedArr tyXss)
 inferType (List xss) = do
-  tys <- traverse inferType xss
+  xss' <- traverse inferType (map stripAnn xss)
+  let tys = map (\(Ann t _) -> t) xss'
   case tys of
-    (t:ts) -> traverse_ (guardTyEqual t) ts *> pure (TyArr t)
+    (t:ts) -> traverse_ (guardTyEqual t) ts *> pure (Ann (TyArr t) (List xss'))
     _ -> panic "Cannot infer type of empty list literal"
 inferType (Length xs) = do
-  ty <- inferType xs
+  xs'@(Ann ty _) <- inferType (stripAnn xs)
   case ty of
-    TyArr _ -> pure TyInt
+    TyArr _ -> pure (Ann TyInt (Length xs'))
     _ -> throwError (ExpectedArr ty)
-inferType (Range a b c) = do
-  _ <- checkType a TyInt
-  _ <- checkType b TyInt
-  _ <- checkType c TyInt
-  pure (TyArr TyInt)
-inferType (Replicate count val) = do
-  _ <- checkType count TyInt
-  tyVal <- inferType val
-  pure (TyArr tyVal)
+inferType (Range (stripAnn -> a) (stripAnn -> b) (stripAnn -> c)) = do
+  a' <- checkType a TyInt
+  b' <- checkType b TyInt
+  c' <- checkType c TyInt
+  pure (Ann (TyArr TyInt) (Range a' b' c'))
+inferType (Replicate (stripAnn -> count) val) = do
+  count' <- checkType count TyInt
+  val'@(Ann tyVal _) <- inferType (stripAnn val)
+  pure (Ann (TyArr tyVal) (Replicate count' val'))
 inferType (LiftN n e) = do
-  enterLiftN n (inferType e)
+  enterLiftN n (inferType (stripAnn e))
 
-inferStepsType :: ProgramSteps Expr -> InferM Ty
+inferStepsType :: ProgramSteps (Expr ()) -> InferM (ProgramSteps TypedExpr)
 inferStepsType (ProgramSteps initial steps final) = do
-  initialTy <- inferType initial
-  stepsTys <- traverse inferType steps
-  finalTy <- inferType final
-  foldlM
-    (\ty (expr, ty') -> guardTyEqualIn expr ty ty')
-    initialTy
-    ((final, finalTy) :| zip steps stepsTys)
+  initial' <- inferType initial
+  steps' <- traverse inferType steps
+  final' <- inferType final
+  foldM_
+    (\(Ann ty e) (Ann ty' _) -> guardTyEqualIn e ty ty')
+    initial'
+    (final' : steps')
+  pure (ProgramSteps initial' steps' final')
