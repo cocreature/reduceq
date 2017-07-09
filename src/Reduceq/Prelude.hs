@@ -7,6 +7,7 @@ module Reduceq.Prelude
   , some1
   , uncurry3
   , assert
+  , unzip
   ) where
 
 import Control.Exception (assert)

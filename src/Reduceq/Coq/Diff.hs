@@ -14,6 +14,9 @@ import Reduceq.Coq.AST
 data Morphism
   = MFst
   | MSnd
+  | MIter
+  | MApp
+  | MIf
   deriving (Show, Eq, Ord)
 
 data Diff e
@@ -30,8 +33,8 @@ data Diff e
   deriving (Show, Eq, Ord, Functor, Foldable, Traversable)
 
 diff :: TypedExpr -> TypedExpr -> Diff TypedExpr
-diff (Ann t (Annotated e _)) e' = diff e e'
-diff e (Ann t (Annotated e' _)) = diff e e'
+diff (Ann _ (Annotated e _)) e' = diff e e'
+diff e (Ann _ (Annotated e' _)) = diff e e'
 diff f@(Ann (TyFun dom ran) (Abs ty _ body)) g@(Ann (TyFun dom' ran') (Abs ty' _ body'))
   | dom == dom' && ran == ran' && ty == ty' && ty == dom =
     DifferentFun f g dom ran (diff body body')
@@ -39,10 +42,14 @@ diff (stripAnn -> (Fst x@(Ann (TyProd a b) _))) (stripAnn -> Fst y@(Ann (TyProd 
   | a == a' && b == b' = DifferentMor MFst [diff x y]
 diff (stripAnn -> (Snd x@(Ann (TyProd a b) _))) (stripAnn -> Snd y@(Ann (TyProd a' b') _))
   | a == a' && b == b' = DifferentMor MSnd [diff x y]
--- diff (Iter f x) (Iter g y) = DifferentArgs (map (uncurry diff) [(f, g), (x, y)])
--- diff (App f x) (App f' x') = DifferentArgs [diff f f', diff x x']
--- diff (If a b c) (If a' b' c') =
---   DifferentArgs (map (uncurry diff) [(a, a'), (b, b'), (c, c')])
+diff (Ann t' (Iter f x)) (Ann t (Iter g y)) =
+  assert (t == t') (DifferentMor MIter [diff f g, diff x y])
+diff (Ann t (App f x)) (Ann t' (App f' x')) =
+  assert (t == t') (DifferentMor MApp [diff f f', diff x x'])
+diff (Ann t (If a b c)) (Ann t' (If a' b' c')) =
+  assert
+    (t == t')
+    (DifferentMor MIf (map (uncurry diff) [(a, a'), (b, b'), (c, c')]))
 -- diff (Inr x) (Inr x') = diff x x'
 -- diff (Inl x) (Inl x') = diff x x'
 -- diff (Pair x y) (Pair x' y') = DifferentArgs [diff x x', diff y y']
@@ -75,3 +82,5 @@ substInDiff !id substitute d = go d
         (substInDiff (succ id) (lift1 substitute) d')
     go (Different x y t) =
       Different (substAt id substitute x) (substAt id substitute y) t
+    go (DifferentMor m args) =
+      DifferentMor m (go <$> args)

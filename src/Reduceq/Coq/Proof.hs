@@ -328,14 +328,18 @@ pprintProofStepsObligation steps@(ProgramSteps (Ann ty _) _ _) = do
 
 
 pprintDiff :: (Text -> Bool) -> Diff TypedExpr -> Doc a
-pprintDiff isExtern = pprintDiff' isExtern 0
+pprintDiff isExtern = concatDiff . pprintDiff' isExtern 0
 
-inEqFun :: Text -> Expr Ty -> Expr Ty -> Doc a -> Doc a
-inEqFun arg f g doc =
+inEqFun :: Text -> Expr Ty -> Expr Ty -> Ty -> Ty -> Doc a -> Doc a
+inEqFun arg f g dom ran doc =
   vsep
-    [ "assert" <+>
-      parens ("equivalent_fun" <+> (align . vsep) [pprintExpr f, pprintExpr g]) <>
-      dot
+    [ (hang 2)
+        ("assert" <+>
+         parens
+           ("equivalent_fun empty_ctx" <+>
+            pprintTy dom <+>
+            pprintTy ran <> line <> vsep [pprintExpr f, pprintExpr g]) <>
+         dot)
     , braces
         (indent 2 $
          align $
@@ -345,18 +349,23 @@ inEqFun arg f g doc =
             , doc
             ] <>
           line))
-    , "admit."
     ]
 
 pprintMor :: Morphism -> Doc a
 pprintMor MFst = "tfst_mor"
 pprintMor MSnd = "tsnd_mor"
+pprintMor MIter = "titer_mor"
+pprintMor MApp = "tapp_mor"
+pprintMor MIf = "tif_mor"
+
+concatDiff :: (Doc a, Doc a) -> Doc a
+concatDiff (assertion, morphism) = vcat [assertion, morphism]
 
 -- | The integer indicates how many binders we have already traversed
-pprintDiff' :: (Text -> Bool) -> Int -> Diff TypedExpr -> Doc a
-pprintDiff' _isExtern _ Equal = mempty
+pprintDiff' :: (Text -> Bool) -> Int -> Diff TypedExpr -> (Doc a, Doc a)
+pprintDiff' _isExtern _ Equal = (mempty, mempty)
 pprintDiff' _isExtern _ (Different x y t) =
-  vsep
+  (vsep
     [ "assert" <+>
       parens
         (vcat
@@ -365,24 +374,33 @@ pprintDiff' _isExtern _ (Different x y t) =
            ]) <>
       dot
     , (align . vcat) [lbrace <+> "admit.", rbrace]
-    ]
-pprintDiff' isExtern !i (DifferentFun f g dom _ran d) =
-  inEqFun
-    arg
-    (stripAnn f)
-    (stripAnn g)
-    (pprintDiff'
-       isExtern
-       (i + 1)
-       (fmap (stripExternLifts isExtern) <$>
-        substInDiff (VarId 0 Nothing) (Ann dom (ExternRef (ExternReference arg dom))) d))
+    ], mempty)
+pprintDiff' isExtern !i (DifferentFun f g dom ran d) =
+  ( inEqFun
+      arg
+      (stripAnn f)
+      (stripAnn g)
+      dom
+      ran
+      (concatDiff
+         (pprintDiff'
+            isExtern'
+            (i + 1)
+            (fmap (stripExternLifts isExtern') <$>
+             substInDiff
+               (VarId 0 Nothing)
+               (Ann dom (ExternRef (ExternReference arg dom)))
+               d)))
+  , mempty)
   where
     arg = "arg" <> show i
+    isExtern' var = isExtern var || var == arg
 pprintDiff' isExtern !i (DifferentMor mor args) =
-  vcat
-    (map (pprintDiff' isExtern i) args ++
-     ["eapply" <+> pprintMor mor <> "; trivial_rewrite || eauto."])
-
+  let (assertions, morphisms) = unzip (map (pprintDiff' isExtern i) args)
+  in ( vcat assertions
+     , vcat
+         ("eapply" <+>
+          pprintMor mor <> "; trivial_rewrite || eauto." : morphisms))
 
 pprintDiffs :: (Text -> Bool) -> [Diff TypedExpr] -> Doc a
 pprintDiffs isExtern = cat . punctuate (line <> "---" <> line) . map (pprintDiff isExtern)

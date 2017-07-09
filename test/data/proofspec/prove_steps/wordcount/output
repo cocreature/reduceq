@@ -64,6 +64,7 @@ Theorem equivalent :
            words)).
       { admit.
       }
+      
     }
   assert (equivalent empty_ctx (TList (TInt :*: TInt))
     (tfold
@@ -88,5 +89,6 @@ Theorem equivalent :
        (tgroup (tmap (tabs TInt (tpair (tvar 0) (tint 1))) words)))).
   { admit.
   }
+  
 Admitted.
 End proof.
