@@ -165,7 +165,7 @@ checkType (IntComp comp (stripAnn -> x) (stripAnn -> y)) ty = do
 checkType (Iter (stripAnn -> loop) (stripAnn -> init)) ty = do
   init' <- checkType init ty
   loop' <- checkType loop (TyFun ty (TySum TyUnit ty))
-  pure (Ann ty (Iter init' loop'))
+  pure (Ann ty (Iter loop' init'))
 checkType (Set (stripAnn -> arr) (stripAnn -> index) (stripAnn -> val)) ty =
   case ty of
     TyArr tyVal -> do
@@ -280,7 +280,7 @@ inferType (IntComp comp x y) = do
 inferType (Iter (stripAnn -> loop) (stripAnn -> init)) = do
   init'@(Ann ty _) <- inferType init
   loop' <- checkType loop (TyFun ty (TySum TyUnit ty))
-  pure (Ann ty (Iter init' loop'))
+  pure (Ann ty (Iter loop' init'))
 inferType (Set (stripAnn -> arr) (stripAnn -> index) (stripAnn -> val)) = do
   index' <- checkType index TyInt
   val'@(Ann tyVal _) <- inferType val
