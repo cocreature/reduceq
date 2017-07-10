@@ -163,6 +163,10 @@ pprintExpr (Replicate (stripAnn -> count) (stripAnn -> val)) = do
   val' <- pprintExpr val
   pure (parens ("treplicate" <+> (align . sep) [count', val']))
 pprintExpr (LiftN _ e) = pprintExpr (stripAnn e)
+pprintExpr (Zip (stripAnn -> xs) (stripAnn -> ys)) = do
+  xs' <- pprintExpr xs
+  ys' <- pprintExpr ys
+  pure (parens ("tzip" <+> (align . sep) [xs', ys']))
 
 displayDoc :: Doc a -> Text
 displayDoc =

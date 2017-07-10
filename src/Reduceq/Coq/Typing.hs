@@ -34,7 +34,7 @@ runInferM (InferM x) = runReader (runExceptT x) Map.empty
 data InferError
   = TypeMismatch Ty
                  Ty
-  | ErrorIn (Expr Ty)
+  | ErrorIn (Expr ())
             InferError
   | UnboundVariable VarId
   | AmbigousType Text
@@ -77,11 +77,14 @@ enterLiftN n =
 withBoundVar :: Ty -> InferM a -> InferM a
 withBoundVar ty = local (Map.insert (VarId 0 Nothing) ty . shiftVarMap)
 
+guardTyEqualIn' :: Expr () -> Ty -> Ty -> InferM ()
+guardTyEqualIn' e actual expected
+  | actual == expected = pure ()
+  | otherwise = throwError (ErrorIn e (TypeMismatch actual expected))
+
 guardTyEqualIn :: Expr Ty -> Ty -> Ty -> InferM TypedExpr
 guardTyEqualIn e ty1 ty2 =
-  if ty1 == ty2
-    then pure (Ann ty1 e)
-    else throwError (ErrorIn e (TypeMismatch ty1 ty2))
+  Ann ty1 e <$ guardTyEqualIn' (() <$ e) ty1 ty2
 
 guardTyEqual :: Ty -> Ty -> InferM Ty
 guardTyEqual ty1 ty2 =
@@ -100,19 +103,20 @@ checkType :: Expr () -> Ty -> InferM TypedExpr
 checkType (Var id) ty = do
   ty' <- varTy id
   guardTyEqualIn (Var id) ty ty'
-checkType (ExternRef (ExternReference name ty')) ty =
-  guardTyEqual ty' ty >> pure (Ann ty' (ExternRef (ExternReference name ty')))
+checkType ref@(ExternRef (ExternReference name ty')) ty =
+  guardTyEqualIn' ref ty' ty >>
+  pure (Ann ty' (ExternRef (ExternReference name ty')))
 checkType (IntLit i) ty = guardTyEqualIn (IntLit i) ty TyInt
 checkType (App (stripAnn -> f) (stripAnn -> x)) ran = do
   x'@(Ann dom _) <- inferType x
   f' <- checkType f (TyFun dom ran)
   pure (Ann ran (App f' x'))
-checkType (Abs codTy name body) ty =
+checkType lam@(Abs domTy name body) ty =
   case ty of
-    TyFun codTy' domTy -> do
-      _ <- guardTyEqual codTy' codTy
-      body' <- withBoundVar codTy (checkType (stripAnn body) domTy)
-      pure (Ann ty (Abs codTy name body'))
+    TyFun domTy' ranTy -> do
+      _ <- guardTyEqualIn' lam domTy domTy'
+      body' <- withBoundVar domTy (checkType (stripAnn body) ranTy)
+      pure (Ann ty (Abs domTy name body'))
     ty' -> throwError (ExpectedFunction ty')
 checkType (Case x ifL ifR) ty = do
   x'@(Ann argTy _) <- inferType (stripAnn x)
@@ -125,12 +129,12 @@ checkType (Case x ifL ifR) ty = do
 checkType (Fst (stripAnn -> a)) ty = do
   a'@(Ann tyProd _) <- inferType a
   case tyProd of
-    TyProd tyFst _ -> guardTyEqual tyFst ty >> pure (Ann ty (Fst a'))
+    TyProd tyFst _ -> guardTyEqualIn (Fst a') tyFst ty
     _ -> throwError (ExpectedProd tyProd)
 checkType (Snd (stripAnn -> a)) ty = do
   a'@(Ann tyProd _) <- inferType a
   case tyProd of
-    TyProd _ tySnd -> guardTyEqual tySnd ty >> pure (Ann ty (Snd a'))
+    TyProd _ tySnd -> guardTyEqualIn (Snd a') tySnd ty
     _ -> throwError (ExpectedProd tyProd)
 checkType (Pair (stripAnn -> a) (stripAnn -> b)) ty = do
   case ty of
@@ -359,6 +363,16 @@ inferType (Replicate (stripAnn -> count) val) = do
   pure (Ann (TyArr tyVal) (Replicate count' val'))
 inferType (LiftN n e) = do
   enterLiftN n (inferType (stripAnn e))
+inferType (Zip xs ys) = do
+  xs'@(Ann tyXs _) <- inferType (stripAnn xs)
+  ys'@(Ann tyYs _) <- inferType (stripAnn ys)
+  case tyXs of
+    TyArr tyX ->
+      case tyYs of
+        TyArr tyY ->
+          pure (Ann (TyArr (TyProd tyX tyY)) (Zip xs' ys'))
+        _ -> throwError (ExpectedArr tyYs)
+    _ -> throwError (ExpectedArr tyXs)
 
 inferStepsType :: ProgramSteps (Expr ()) -> InferM (ProgramSteps TypedExpr)
 inferStepsType (ProgramSteps initial steps final) = do

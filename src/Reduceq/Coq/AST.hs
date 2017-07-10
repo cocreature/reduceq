@@ -131,10 +131,14 @@ data Expr a
           (Ann a (Expr a))
   | Replicate (Ann a (Expr a))
               (Ann a (Expr a))
+  | Zip (Ann a (Expr a)) (Ann a (Expr a))
   | List [(Ann a (Expr a))]
   | LiftN Word
           (Ann a (Expr a))
   deriving (Show, Eq, Ord, Data, Typeable)
+
+instance Functor Expr where
+  fmap f (App (Ann a e) (Ann a' e')) = App (Ann (f a) (f <$> e)) (Ann (f a') (f <$> e'))
 
 makePrisms ''Expr
 

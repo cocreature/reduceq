@@ -354,6 +354,11 @@ transformExpr (Imp.Call (Imp.VarRef "replicate") args) =
     [count, val] ->
       fmap ann $ Coq.Replicate <$> transformExpr count <*> transformExpr val
     _ -> throwError (ExpectedArgs "replicate" 2 (length args))
+transformExpr (Imp.Call (Imp.VarRef "zip") args) =
+  case args of
+    [xs, ys] ->
+      fmap ann $ Coq.Zip <$> transformExpr xs <*> transformExpr ys
+    _ -> throwError (ExpectedArgs "zip" 2 (length args))
 transformExpr (Imp.Call fun args) =
   foldl'
     (\f arg -> fmap ann $ Coq.App <$> f <*> transformExpr arg)

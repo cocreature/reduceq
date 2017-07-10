@@ -112,6 +112,8 @@ pprintExpr (Range a b c) = parens ("trange" <+> (align . sep . map (pprintExpr .
 pprintExpr (Replicate count val) =
   parens ("treplicate" <+> (align . sep) [pprintExpr (stripAnn count), pprintExpr (stripAnn val)])
 pprintExpr (LiftN n e) = pprintExpr (stripAnn e) <> ".[ren (+" <> pretty n <> ")]"
+pprintExpr (Zip xs ys) =
+  parens ("tzip" <+> (align . sep . map (pprintExpr . stripAnn)) [xs, ys])
 
 pprintTypingJudgment :: Text -> [ExternReference] -> Ty -> Doc a
 pprintTypingJudgment name externRefs ty =

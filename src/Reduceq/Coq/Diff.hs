@@ -44,8 +44,10 @@ diff (stripAnn -> (Snd x@(Ann (TyProd a b) _))) (stripAnn -> Snd y@(Ann (TyProd 
   | a == a' && b == b' = DifferentMor MSnd [diff x y]
 diff (Ann t' (Iter f x)) (Ann t (Iter g y)) =
   assert (t == t') (DifferentMor MIter [diff f g, diff x y])
-diff (Ann t (App f x)) (Ann t' (App f' x')) =
-  assert (t == t') (DifferentMor MApp [diff f f', diff x x'])
+diff e@(Ann t (App f@(Ann funTy _) x)) e'@(Ann t' (App f'@(Ann funTy' _) x'))
+  | funTy == funTy' =
+    assert (t == t') (DifferentMor MApp [diff f f', diff x x'])
+  | otherwise = assert (t == t') (Different e e' t)
 diff (Ann t (If a b c)) (Ann t' (If a' b' c')) =
   assert
     (t == t')
