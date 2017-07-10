@@ -138,7 +138,16 @@ data Expr a
   deriving (Show, Eq, Ord, Data, Typeable)
 
 instance Functor Expr where
+  fmap _ (Var id) = Var id
+  fmap _ (ExternRef ref) = ExternRef ref
+  fmap _ (IntLit i) = IntLit i
   fmap f (App (Ann a e) (Ann a' e')) = App (Ann (f a) (f <$> e)) (Ann (f a') (f <$> e'))
+  fmap f (Abs t name (Ann a body)) = Abs t name (Ann (f a) (f <$> body))
+  fmap f (Fst (Ann a e)) = Fst (Ann (f a) (f <$> e))
+  fmap f (Snd (Ann a e)) = Snd (Ann (f a) (f <$> e))
+  fmap f (Pair (Ann a e) (Ann a' e')) = Pair (Ann (f a) (f <$> e)) (Ann (f a') (f <$> e'))
+  fmap f (Inl (Ann a e)) = Inl (Ann (f a) (f <$> e))
+  fmap f (Inr (Ann a e)) = Inr (Ann (f a) (f <$> e))
 
 makePrisms ''Expr
 
