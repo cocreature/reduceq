@@ -53,6 +53,31 @@ extern fn nearestCenter(p : Int * Int, centers : [Int * Int]) -> Int {}
 fn kmeans(points : [Int * Int], centers : [Int * Int]) -> [Int * Int] {
   iter : Int = 0;
   while (iter < 10) {
+    new_centers_and_count : [(Int * Int) * Int] = zip(replicate(length(centers), (0,0)), replicate(length(centers), 0));
+    pointsWithNearest : [(Int * Int) * Int] =
+      map((p : Int * Int) => (p, nearestCenter(p, centers)),
+          points);
+    for ((p_min : (Int * Int) * Int) : pointsWithNearest) {
+      new_centers_and_count[snd p_min] :=
+        (addPoints(fst new_centers_and_count[snd p_min], fst p_min), snd new_centers_and_count[snd p_min] + 1);
+    }
+    new_centers : [(Int * Int)] = replicate(length(centers), (0,0));
+    for ((i : Int) : range(0, length(new_centers), 0)) {
+      new_centers[i] := div(fst new_centers_and_count[i], snd new_centers_and_count[i]);
+    }
+    centers := new_centers;
+    iter := iter + 1;
+  }
+  return centers;
+}
+---
+extern fn dist(a : Int * Int, b : Int * Int) -> Int {}
+extern fn addPoints(a : Int * Int, b : Int * Int) -> Int * Int {}
+extern fn div(a : Int * Int, b : Int) -> Int * Int {}
+extern fn nearestCenter(p : Int * Int, centers : [Int * Int]) -> Int {}
+fn kmeans(points : [Int * Int], centers : [Int * Int]) -> [Int * Int] {
+  iter : Int = 0;
+  while (iter < 10) {
     local_centers : [Int * Int] = centers;
     new_centers : [Int * Int] =
       map((p : Int * ((Int * Int) * Int)) => div(fst (snd p), snd (snd p)),
