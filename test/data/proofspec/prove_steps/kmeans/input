@@ -12,7 +12,7 @@ fn kmeans(points : [Int * Int], centers : [Int * Int]) -> [Int * Int] {
       new_centers[min_id] := addPoints(new_centers[min_id], p);
       new_center_count[min_id] := new_center_count[min_id] + 1;
     }
-    for ((i : Int) : range(0, length(new_centers), 0)) {
+    for ((i : Int) : range(0, length(new_centers), 1)) {
       new_centers[i] := div(new_centers[i], new_center_count[i]);
     }
     centers := new_centers;
@@ -37,7 +37,7 @@ fn kmeans(points : [Int * Int], centers : [Int * Int]) -> [Int * Int] {
       new_centers[snd p_min] := addPoints(new_centers[snd p_min], fst p_min);
       new_center_count[snd p_min] := new_center_count[snd p_min] + 1;
     }
-    for ((i : Int) : range(0, length(new_centers), 0)) {
+    for ((i : Int) : range(0, length(new_centers), 1)) {
       new_centers[i] := div(new_centers[i], new_center_count[i]);
     }
     centers := new_centers;
@@ -62,7 +62,7 @@ fn kmeans(points : [Int * Int], centers : [Int * Int]) -> [Int * Int] {
         (addPoints(fst new_centers_and_count[snd p_min], fst p_min), snd new_centers_and_count[snd p_min] + 1);
     }
     new_centers : [(Int * Int)] = replicate(length(centers), (0,0));
-    for ((i : Int) : range(0, length(new_centers), 0)) {
+    for ((i : Int) : range(0, length(new_centers), 1)) {
       new_centers[i] := div(fst new_centers_and_count[i], snd new_centers_and_count[i]);
     }
     centers := new_centers;
