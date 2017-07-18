@@ -17,6 +17,9 @@ data Morphism
   | MIter
   | MApp
   | MIf
+  | MInr
+  | MInl
+  | MPair
   deriving (Show, Eq, Ord)
 
 data Diff e
@@ -52,9 +55,12 @@ diff (Ann t (If a b c)) (Ann t' (If a' b' c')) =
   assert
     (t == t')
     (DifferentMor MIf (map (uncurry diff) [(a, a'), (b, b'), (c, c')]))
--- diff (Inr x) (Inr x') = diff x x'
--- diff (Inl x) (Inl x') = diff x x'
--- diff (Pair x y) (Pair x' y') = DifferentArgs [diff x x', diff y y']
+diff (Ann t (Inr x)) (Ann t' (Inr x')) =
+  assert (t == t') $ DifferentMor MInr [diff x x']
+diff (Ann t (Inl x)) (Ann t' (Inl x')) =
+  assert (t == t') $ DifferentMor MInl [diff x x']
+diff (Ann t (Pair x y)) (Ann t' (Pair x' y')) =
+  assert (t == t') $ DifferentMor MPair [diff x x', diff y y']
 diff (Ann t x) (Ann t' x')
   | x == x' = Equal
   | otherwise = assert (t == t') $ Different (Ann t x) (Ann t' x') t

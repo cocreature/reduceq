@@ -359,6 +359,9 @@ pprintMor MSnd = "tsnd_mor"
 pprintMor MIter = "titer_mor"
 pprintMor MApp = "tapp_mor"
 pprintMor MIf = "tif_mor"
+pprintMor MInl = "tinl_mor"
+pprintMor MInr = "tinr_mor"
+pprintMor MPair = "tpair_mor"
 
 concatDiff :: (Doc a, Doc a) -> Doc a
 concatDiff (assertion, morphism) = vcat [assertion, morphism]
