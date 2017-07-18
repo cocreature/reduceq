@@ -146,6 +146,29 @@ fn kmeans(points : [Int * Int], centers : [Int * Int]) -> [Int * Int] {
   iter : Int = 0;
   while (iter < 10) {
     local_centers : [Int * Int] = centers;
+    new_centers : [Int * ((Int * Int) * Int)] =
+      reduceByKey((p1 : (Int * Int) * Int) (p2 : (Int * Int) * Int) =>
+                     (addPoints(fst p1, fst p2), snd p1 + snd p2),
+                  ((0, 0), 0),
+                  map((p : Int * Int) => (nearestCenter(p, local_centers), (p, 1)), points));
+    tmp_centers : [(Int * Int) * Int] = zip(replicate(length(centers), (0,0)), replicate(length(centers), 0));
+    for ((p : Int * ((Int * Int) * Int)) : new_centers) {
+      tmp_centers[fst p] := snd p;
+    }
+    centers := map ((p : (Int * Int) * Int) => div(fst p, snd p), tmp_centers);
+    iter := iter + 1;
+  }
+  return centers;
+}
+---
+extern fn dist(a : Int * Int, b : Int * Int) -> Int {}
+extern fn addPoints(a : Int * Int, b : Int * Int) -> Int * Int {}
+extern fn div(a : Int * Int, b : Int) -> Int * Int {}
+extern fn nearestCenter(p : Int * Int, centers : [Int * Int]) -> Int {}
+fn kmeans(points : [Int * Int], centers : [Int * Int]) -> [Int * Int] {
+  iter : Int = 0;
+  while (iter < 10) {
+    local_centers : [Int * Int] = centers;
     new_centers : [Int * Int] =
       map((p : Int * ((Int * Int) * Int)) => div(fst (snd p), snd (snd p)),
           reduceByKey((p1 : (Int * Int) * Int) (p2 : (Int * Int) * Int) =>
