@@ -359,12 +359,25 @@ transformExpr (Imp.Call (Imp.VarRef "zip") args) =
     [xs, ys] ->
       fmap ann $ Coq.Zip <$> transformExpr xs <*> transformExpr ys
     _ -> throwError (ExpectedArgs "zip" 2 (length args))
+transformExpr (Imp.Call (Imp.VarRef "fold") args) =
+  case args of
+    [f, i, xs] ->
+      fmap ann $
+      Coq.Fold <$> transformExpr f <*> transformExpr i <*> transformExpr xs
+    _ -> throwError (ExpectedArgs "fold" 3 (length args))
+transformExpr (Imp.Call (Imp.VarRef "write") args) =
+  case args of
+    [xs, i, val] ->
+      fmap ann $
+      Coq.Set <$> transformExpr xs <*> transformExpr i <*> transformExpr val
 transformExpr (Imp.Call fun args) =
   foldl'
     (\f arg -> fmap ann $ Coq.App <$> f <*> transformExpr arg)
     (transformExpr fun)
     args
 transformExpr Imp.EmptyArray = pure (ann (Coq.List []))
+transformExpr (Imp.Lambda vars body) =
+  foldr (\var acc -> withBoundVar var acc) (transformExpr body) vars
 
 transformTy :: Imp.Ty -> Coq.Ty
 transformTy Imp.TyInt = Coq.TyInt
