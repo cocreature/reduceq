@@ -24,7 +24,7 @@ module Reduceq.Coq.AST
 
 import           Reduceq.Prelude
 
-import           Control.Lens hiding ((&), index, op, List)
+import           Control.Lens hiding ((&), index, op, List, Fold)
 import           Control.Monad.State.Strict
 import           Data.Data
 
@@ -141,13 +141,47 @@ instance Functor Expr where
   fmap _ (Var id) = Var id
   fmap _ (ExternRef ref) = ExternRef ref
   fmap _ (IntLit i) = IntLit i
-  fmap f (App (Ann a e) (Ann a' e')) = App (Ann (f a) (f <$> e)) (Ann (f a') (f <$> e'))
+  fmap f (App (Ann a e) (Ann a' e')) =
+    App (Ann (f a) (f <$> e)) (Ann (f a') (f <$> e'))
   fmap f (Abs t name (Ann a body)) = Abs t name (Ann (f a) (f <$> body))
   fmap f (Fst (Ann a e)) = Fst (Ann (f a) (f <$> e))
   fmap f (Snd (Ann a e)) = Snd (Ann (f a) (f <$> e))
-  fmap f (Pair (Ann a e) (Ann a' e')) = Pair (Ann (f a) (f <$> e)) (Ann (f a') (f <$> e'))
+  fmap f (Pair (Ann a e) (Ann a' e')) =
+    Pair (Ann (f a) (f <$> e)) (Ann (f a') (f <$> e'))
   fmap f (Inl (Ann a e)) = Inl (Ann (f a) (f <$> e))
   fmap f (Inr (Ann a e)) = Inr (Ann (f a) (f <$> e))
+  fmap f (Fold (Ann ga g) (Ann ia i) (Ann xsa xs)) =
+    Fold (Ann (f ga) (f <$> g)) (Ann (f ia) (f <$> i)) (Ann (f xsa) (f <$> xs))
+  fmap f (Case (Ann cAnn c) (Ann lAnn l) (Ann rAnn r)) =
+    Case
+      (Ann (f cAnn) (f <$> c))
+      (Ann (f lAnn) (f <$> l))
+      (Ann (f rAnn) (f <$> r))
+  fmap f (If (Ann cAnn c) (Ann tAnn t) (Ann fAnn fa)) =
+    If
+      (Ann (f cAnn) (f <$> c))
+      (Ann (f tAnn) (f <$> t))
+      (Ann (f fAnn) (f <$> fa))
+  fmap f (IntBinop op (Ann xAnn x) (Ann yAnn y)) =
+    IntBinop op (Ann (f xAnn) (f <$> x)) (Ann (f yAnn) (f <$> y))
+  fmap f (IntComp comp (Ann xAnn x) (Ann yAnn y)) =
+    IntComp comp (Ann (f xAnn) (f <$> x)) (Ann (f yAnn) (f <$> y))
+  fmap f (Iter (Ann gAnn g) (Ann iAnn i)) =
+    Iter (Ann (f gAnn) (f <$> g)) (Ann (f iAnn) (f <$> i))
+  fmap f (Set (Ann arrAnn arr) (Ann iAnn i) (Ann valAnn val)) =
+    Set
+      (Ann (f arrAnn) (f <$> arr))
+      (Ann (f iAnn) (f <$> i))
+      (Ann (f valAnn) (f <$> val))
+  fmap f (SetAtKey _ _ _) = error "setatkey"
+  fmap f (ReadAtKey _ _) = error "readatkey"
+  fmap f (Read _ _) = error "read"
+  fmap f (Annotated _ _) = error "annotated"
+  fmap f (Map (Ann mapAnn mapper) (Ann xsAnn xs)) = Map (Ann (f mapAnn) (f <$> mapper)) (Ann (f xsAnn) (f <$> xs))
+  fmap f (Group _) = error "group"
+  fmap f (Concat _) = error "concat"
+  fmap f (Length _) = error "length"
+  fmap f Unit = Unit
 
 makePrisms ''Expr
 
