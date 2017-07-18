@@ -178,7 +178,8 @@ instance Functor Expr where
   fmap f (Read _ _) = error "read"
   fmap f (Annotated _ _) = error "annotated"
   fmap f (Map (Ann mapAnn mapper) (Ann xsAnn xs)) = Map (Ann (f mapAnn) (f <$> mapper)) (Ann (f xsAnn) (f <$> xs))
-  fmap f (Group _) = error "group"
+  fmap f (Group (Ann arrAnn arr)) =
+    Group (Ann (f arrAnn) (f <$> arr))
   fmap f (Concat _) = error "concat"
   fmap f (Length _) = error "length"
   fmap f Unit = Unit
