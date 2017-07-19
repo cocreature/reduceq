@@ -169,13 +169,16 @@ fn kmeans(points : [Int * Int], centers : [Int * Int]) -> [Int * Int] {
   iter : Int = 0;
   while (iter < 10) {
     local_centers : [Int * Int] = centers;
-    new_centers : [Int * Int] =
-      map((p : Int * ((Int * Int) * Int)) => div(fst (snd p), snd (snd p)),
+    new_centers : [Int * (Int * Int)] =
+      map((p : Int * ((Int * Int) * Int)) => (fst p, div(fst (snd p), snd (snd p))),
           reduceByKey((p1 : (Int * Int) * Int) (p2 : (Int * Int) * Int) =>
                         (addPoints(fst p1, fst p2), snd p1 + snd p2),
                       ((0, 0), 0),
                       map((p : Int * Int) => (nearestCenter(p, local_centers), (p, 1)), points)));
-    centers := new_centers;
+    centers := replicate(length(centers), (0,0));
+    for ((p : Int * (Int * Int)) : new_centers) {
+      centers[fst p] := snd p;
+    }
     iter := iter + 1;
   }
   return centers;
