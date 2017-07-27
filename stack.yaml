@@ -1,14 +1,7 @@
-resolver: lts-8.21
+resolver: lts-9.0
 packages:
 - '.'
 extra-deps:
 - containers-0.5.10.2
-- lens-4.15.3
-- prettyprinter-1.1
-- prettyprinter-ansi-terminal-1.1
-- hspec-2.4.4
-- hspec-core-2.4.4
-- hspec-discover-2.4.4
-- quickcheck-io-0.2.0
 flags: {}
 extra-package-dbs: []

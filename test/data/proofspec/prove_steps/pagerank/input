@@ -1,0 +1,19 @@
+extern fn div(x : Int, y : Int) -> Int;
+fn pageRank(links : [[Int]], numPages : Int, iterations : Int) -> [Int] {
+  iter : Int = 0;
+  ranks : [Int] = replicate(numPages, div(1, numPages));
+  while (iter < iterations) {
+    iter := iter + 1;
+  }
+  return ranks;
+}
+---
+extern fn div(x : Int, y : Int) -> Int;
+fn pageRank(links : [[Int]], numPages : Int, iterations : Int) -> [Int] {
+  iter : Int = 0;
+  ranks : [Int] = replicate(numPages, div(1, numPages));
+  while (iter < iterations) {
+    iter := iter + 1;
+  }
+  return ranks;
+}
