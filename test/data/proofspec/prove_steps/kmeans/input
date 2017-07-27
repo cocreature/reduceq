@@ -53,6 +53,32 @@ extern fn nearestCenter(p : Int * Int, centers : [Int * Int]) -> Int {}
 fn kmeans(points : [Int * Int], centers : [Int * Int]) -> [Int * Int] {
   iter : Int = 0;
   while (iter < 10) {
+    new_centers : [Int * Int] = replicate(length(centers), (0,0));
+    new_center_count : [Int] = replicate(length(centers), 0);
+    pointsWithNearest : [(Int * Int) * Int] =
+      map((p : Int * Int) => (p, nearestCenter(p, centers)),
+          points);
+    for ((p_min : (Int * Int) * Int) : pointsWithNearest) {
+      new_centers[snd p_min] := addPoints(new_centers[snd p_min], fst p_min);
+      new_center_count[snd p_min] := new_center_count[snd p_min] + 1;
+    }
+    tmp_centers : [Int * Int] = replicate(length(new_centers), (0,0));
+    for ((i : Int) : range(0, length(new_centers), 1)) {
+      tmp_centers[i] := div(new_centers[i], new_center_count[i]);
+    }
+    centers := tmp_centers;
+    iter := iter + 1;
+  }
+  return centers;
+}
+---
+extern fn dist(a : Int * Int, b : Int * Int) -> Int {}
+extern fn addPoints(a : Int * Int, b : Int * Int) -> Int * Int {}
+extern fn div(a : Int * Int, b : Int) -> Int * Int {}
+extern fn nearestCenter(p : Int * Int, centers : [Int * Int]) -> Int {}
+fn kmeans(points : [Int * Int], centers : [Int * Int]) -> [Int * Int] {
+  iter : Int = 0;
+  while (iter < 10) {
     new_centers_and_count : [(Int * Int) * Int] = zip(replicate(length(centers), (0,0)), replicate(length(centers), 0));
     pointsWithNearest : [(Int * Int) * Int] =
       map((p : Int * Int) => (p, nearestCenter(p, centers)),
@@ -151,7 +177,7 @@ fn kmeans(points : [Int * Int], centers : [Int * Int]) -> [Int * Int] {
                      (addPoints(fst p1, fst p2), snd p1 + snd p2),
                   ((0, 0), 0),
                   map((p : Int * Int) => (nearestCenter(p, local_centers), (p, 1)), points));
-    tmp_centers : [(Int * Int) * Int] = zip(replicate(length(centers), (0,0)), replicate(length(centers), 0));
+    tmp_centers : [(Int * Int) * Int] = zip(replicate(length(centers), (0,0)), replicate(length(centers), 1));
     for ((p : Int * ((Int * Int) * Int)) : new_centers) {
       tmp_centers[fst p] := snd p;
     }
