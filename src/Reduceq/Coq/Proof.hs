@@ -66,7 +66,8 @@ pprintExpr (If (stripAnn -> cond) (stripAnn -> ifTrue) (stripAnn -> ifFalse)) =
   parens
     ("tif" <+>
      (align . sep) [pprintExpr cond, pprintExpr ifTrue, pprintExpr ifFalse])
-pprintExpr (IntBinop op (stripAnn -> x) (stripAnn -> y)) = parens (pprintExpr x <+> op' <+> pprintExpr y)
+pprintExpr (IntBinop op (stripAnn -> x) (stripAnn -> y)) =
+  (parens . align . sep) [pprintExpr x <+> op', pprintExpr y]
   where
     op' =
       case op of
@@ -94,7 +95,7 @@ pprintExpr (Set (stripAnn -> arr) (stripAnn -> index) (stripAnn -> val)) =
 pprintExpr (SetAtKey (stripAnn -> arr) (stripAnn -> key) (stripAnn -> val)) =
   pprintApp "twrite_at_key" [pprintExpr arr, pprintExpr key, pprintExpr val]
 pprintExpr (Read (stripAnn -> arr) (stripAnn -> index)) =
-  parens ("tread" <+> pprintExpr arr <+> pprintExpr index)
+  parens ("tread" <+> (align (sep [pprintExpr arr, pprintExpr index])))
 pprintExpr (ReadAtKey (stripAnn -> arr) (stripAnn -> key)) =
   pprintApp "tread_at_key" [pprintExpr arr, pprintExpr key]
 pprintExpr Unit = "tunit"
