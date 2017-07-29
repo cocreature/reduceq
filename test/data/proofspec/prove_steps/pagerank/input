@@ -1,18 +1,62 @@
-extern fn div(x : Int, y : Int) -> Int;
-fn pageRank(links : [[Int]], numPages : Int, iterations : Int) -> [Int] {
+extern fn div(x : Int, y : Int) -> Int {}
+fn pageRank(links : [[Int]], numPages : Int, dampening : Int, iterations : Int) -> [Int] {
   iter : Int = 0;
   ranks : [Int] = replicate(numPages, div(1, numPages));
   while (iter < iterations) {
+    newRanks : [Int] = replicate(numPages, 0);
+    for ((pageId : Int) : range(0, numPages, 1)) {
+      contribution : Int = div(ranks[pageId], length(links[pageId]));
+      for ((outgoingId : Int) : links[pageId]) {
+        newRanks[outgoingId] := newRanks[outgoingId] + contribution;
+      }
+    }
+
+    for ((pageId : Int) : range(0, numPages, 1)) {
+      ranks[pageId] := dampening * newRanks[pageId] + div(1 - dampening, numPages);
+    }
     iter := iter + 1;
   }
   return ranks;
 }
 ---
-extern fn div(x : Int, y : Int) -> Int;
-fn pageRank(links : [[Int]], numPages : Int, iterations : Int) -> [Int] {
+extern fn div(x : Int, y : Int) -> Int {}
+fn pageRank(links : [[Int]], numPages : Int, dampening : Int, iterations : Int) -> [Int] {
   iter : Int = 0;
   ranks : [Int] = replicate(numPages, div(1, numPages));
   while (iter < iterations) {
+    newRanks : [Int] = replicate(numPages, 0);
+    for ((pageId : Int) : range(0, numPages, 1)) {
+      contribution : Int = div(ranks[pageId], length(links[pageId]));
+      for ((outgoingId : Int) : links[pageId]) {
+        newRanks[outgoingId] := newRanks[outgoingId] + contribution;
+      }
+    }
+
+    ranks :=
+      map((rank : Int) => dampening * rank + div(1 - dampening, numPages),
+          newRanks);
+    iter := iter + 1;
+  }
+  return ranks;
+}
+---
+extern fn div(x : Int, y : Int) -> Int {}
+fn pageRank(links : [[Int]], numPages : Int, dampening : Int, iterations : Int) -> [Int] {
+  iter : Int = 0;
+  ranks : [Int] = replicate(numPages, div(1, numPages));
+  while (iter < iterations) {
+    outRanks : [[Int] * Int] = zip(links, ranks);
+    contribs : [Int * Int] =
+      flatMap((links_rank : [Int] * Int) =>
+                 map((link : Int) => (link, div(snd links_rank, length(fst links_rank))),
+                     fst links_rank),
+              outRanks);
+    newRanks : [Int] =
+      map((id_rank : Int * Int) => snd id_rank,
+        reduceByKey((x : Int) (y : Int) => x + y, 0, contribs));
+    ranks :=
+      map((rank : Int) => dampening * rank + div(1 - dampening, numPages),
+          newRanks);
     iter := iter + 1;
   }
   return ranks;
