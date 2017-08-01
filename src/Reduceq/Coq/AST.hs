@@ -181,7 +181,7 @@ instance Functor Expr where
   fmap f (Group (Ann arrAnn arr)) =
     Group (Ann (f arrAnn) (f <$> arr))
   fmap f (Concat _) = error "concat"
-  fmap f (Length _) = error "length"
+  fmap f (Length (Ann xsAnn xs)) = Length (Ann (f xsAnn) (f <$> xs))
   fmap f Unit = Unit
 
 makePrisms ''Expr
