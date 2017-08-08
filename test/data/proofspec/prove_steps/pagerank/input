@@ -98,35 +98,8 @@ fn pageRank(links : [[Int]], numPages : Int, dampening : Int, iterations : Int) 
                  fst links_rank),
           outRanks);
 
-    for ((links_contrib : [Int * Int]) : linksAndContrib) {
-      for ((outgoingId_contrib : Int * Int) : links_contrib) {
-        newRanks[fst outgoingId_contrib] := newRanks[fst outgoingId_contrib] + snd outgoingId_contrib;
-      }
-    }
-
-    ranks :=
-      map((rank : Int) => dampening * rank + div(1 - dampening, numPages),
-          newRanks);
-    iter := iter + 1;
-  }
-  return ranks;
-}
----
-extern fn div(x : Int, y : Int) -> Int {}
-fn pageRank(links : [[Int]], numPages : Int, dampening : Int, iterations : Int) -> [Int] {
-  iter : Int = 0;
-  ranks : [Int] = replicate(numPages, div(1, numPages));
-  while (iter < iterations) {
-    newRanks : [Int] = replicate(numPages, 0);
-    outRanks : [[Int] * Int] = zip(links, ranks);
-    linksAndContrib : [[Int] * Int] =
-      map((links_rank : [Int] * Int) => (fst links_rank, div(snd links_rank, length(fst links_rank))),
-          outRanks);
-
-    for ((links_rank_contrib : [Int] * Int) : linksAndContrib) {
-      for ((outgoingId : Int) : fst links_rank_contrib) {
-        newRanks[outgoingId] := newRanks[outgoingId] + snd links_rank_contrib;
-      }
+    for ((link_contrib : Int * Int) : concat(linksAndContrib)) {
+        newRanks[fst link_contrib] := newRanks[fst link_contrib] + snd link_contrib;
     }
 
     ranks :=
@@ -148,9 +121,12 @@ fn pageRank(links : [[Int]], numPages : Int, dampening : Int, iterations : Int) 
                  map((link : Int) => (link, div(snd links_rank, length(fst links_rank))),
                      fst links_rank),
               outRanks);
-    newRanks : [Int] =
-      map((id_rank : Int * Int) => snd id_rank,
-        reduceByKey((x : Int) (y : Int) => x + y, 0, contribs));
+    rankUpdates : [Int * Int] =
+      reduceByKey((x : Int) (y : Int) => x + y, 0, contribs);
+    newRanks : [Int] = replicate(numPages, 0);
+    for ((link_rank : Int * Int) : rankUpdates) {
+      newRanks[fst link_rank] := snd link_rank;
+    }
     ranks :=
       map((rank : Int) => dampening * rank + div(1 - dampening, numPages),
           newRanks);
