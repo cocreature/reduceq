@@ -370,6 +370,11 @@ transformExpr (Imp.Call (Imp.VarRef "write") args) =
     [xs, i, val] ->
       fmap ann $
       Coq.Set <$> transformExpr xs <*> transformExpr i <*> transformExpr val
+transformExpr (Imp.Call (Imp.VarRef "concat") args) =
+  case args of
+    [xs] ->
+      fmap ann $ Coq.Concat <$> transformExpr xs
+    _ -> throwError (ExpectedArgs "concat" 1 (length args))
 transformExpr (Imp.Call fun args) =
   foldl'
     (\f arg -> fmap ann $ Coq.App <$> f <*> transformExpr arg)
