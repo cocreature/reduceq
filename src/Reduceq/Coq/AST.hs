@@ -173,14 +173,14 @@ instance Functor Expr where
       (Ann (f arrAnn) (f <$> arr))
       (Ann (f iAnn) (f <$> i))
       (Ann (f valAnn) (f <$> val))
-  fmap f (SetAtKey _ _ _) = error "setatkey"
-  fmap f (ReadAtKey _ _) = error "readatkey"
-  fmap f (Read _ _) = error "read"
-  fmap f (Annotated _ _) = error "annotated"
+  fmap f (SetAtKey _ _ _) = panic "setatkey"
+  fmap f (ReadAtKey _ _) = panic "readatkey"
+  fmap f (Read _ _) = panic "read"
+  fmap f (Annotated _ _) = panic "annotated"
   fmap f (Map (Ann mapAnn mapper) (Ann xsAnn xs)) = Map (Ann (f mapAnn) (f <$> mapper)) (Ann (f xsAnn) (f <$> xs))
   fmap f (Group (Ann arrAnn arr)) =
     Group (Ann (f arrAnn) (f <$> arr))
-  fmap f (Concat _) = error "concat"
+  fmap f (Concat _) = panic "concat"
   fmap f (Length (Ann xsAnn xs)) = Length (Ann (f xsAnn) (f <$> xs))
   fmap f Unit = Unit
 
