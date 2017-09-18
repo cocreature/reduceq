@@ -173,16 +173,33 @@ instance Functor Expr where
       (Ann (f arrAnn) (f <$> arr))
       (Ann (f iAnn) (f <$> i))
       (Ann (f valAnn) (f <$> val))
-  fmap f (SetAtKey _ _ _) = panic "setatkey"
-  fmap f (ReadAtKey _ _) = panic "readatkey"
-  fmap f (Read _ _) = panic "read"
-  fmap f (Annotated _ _) = panic "annotated"
-  fmap f (Map (Ann mapAnn mapper) (Ann xsAnn xs)) = Map (Ann (f mapAnn) (f <$> mapper)) (Ann (f xsAnn) (f <$> xs))
-  fmap f (Group (Ann arrAnn arr)) =
-    Group (Ann (f arrAnn) (f <$> arr))
-  fmap f (Concat _) = panic "concat"
+  fmap f (SetAtKey (Ann xsAnn xs) (Ann iAnn i) (Ann xAnn x)) =
+    SetAtKey
+      (Ann (f xsAnn) (f <$> xs))
+      (Ann (f iAnn) (f <$> i))
+      (Ann (f xAnn) (f <$> x))
+  fmap f (ReadAtKey (Ann xsAnn xs) (Ann iAnn i)) =
+    ReadAtKey (Ann (f xsAnn) (f <$> xs)) (Ann (f iAnn) (f <$> i))
+  fmap f (Read (Ann xsAnn xs) (Ann iAnn i)) =
+    Read (Ann (f xsAnn) (f <$> xs)) (Ann (f iAnn) (f <$> i))
+  fmap f (Annotated (Ann ann e) t) = Annotated (Ann (f ann) (f <$> e)) t
+  fmap f (Map (Ann mapAnn mapper) (Ann xsAnn xs)) =
+    Map (Ann (f mapAnn) (f <$> mapper)) (Ann (f xsAnn) (f <$> xs))
+  fmap f (Group (Ann arrAnn arr)) = Group (Ann (f arrAnn) (f <$> arr))
+  fmap f (Concat (Ann xssAnn xss)) = Concat (Ann (f xssAnn) (f <$> xss))
   fmap f (Length (Ann xsAnn xs)) = Length (Ann (f xsAnn) (f <$> xs))
-  fmap f Unit = Unit
+  fmap f (Range (Ann xAnn x) (Ann yAnn y) (Ann zAnn z)) =
+    Range
+      (Ann (f xAnn) (f <$> x))
+      (Ann (f yAnn) (f <$> y))
+      (Ann (f zAnn) (f <$> z))
+  fmap f (Replicate (Ann nAnn n) (Ann vAnn v)) =
+    Replicate (Ann (f nAnn) (f <$> n)) (Ann (f vAnn) (f <$> v))
+  fmap f (Zip (Ann xsAnn xs) (Ann ysAnn ys)) =
+    Zip (Ann (f xsAnn) (f <$> xs)) (Ann (f ysAnn) (f <$> ys))
+  fmap f (List xs) = List (map (\(Ann eAnn e) -> Ann (f eAnn) (f <$> e)) xs)
+  fmap f (LiftN i (Ann eAnn e)) = LiftN i (Ann (f eAnn) (f <$> e))
+  fmap _ Unit = Unit
 
 makePrisms ''Expr
 
@@ -271,9 +288,9 @@ simplify =
         Just $ substAt (VarId 0 Nothing) (Ann a (lit `Annotated` ty)) body
       (Ann _ (App (unannotate . stripAnn -> Abs ty _name (Ann _ (Var (VarId 0 _)))) arg@(Ann a _))) ->
         Just (Ann a (arg `Annotated` ty))
-      (Ann a (App (unannotate . stripAnn -> Abs ty _name body) (fmap unannotate -> ref@(Ann _ (ExternRef (ExternReference _ ty')))))) ->
+      (Ann _ (App (unannotate . stripAnn -> Abs ty _name body) (fmap unannotate -> ref@(Ann _ (ExternRef (ExternReference _ ty')))))) ->
         assert (ty == ty') $ Just $ substAt (VarId 0 Nothing) ref body
-      (Ann _ (App (unannotate . stripAnn -> Abs _ty _name body) arg@(Ann a _)))
+      (Ann _ (App (unannotate . stripAnn -> Abs _ty _name body) arg@(Ann _ _)))
         | countReferences (VarId 0 Nothing) (stripAnn body) <= 1 ->
           Just (substAt (VarId 0 Nothing) arg body)
       _ -> Nothing

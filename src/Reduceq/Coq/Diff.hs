@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fmax-pmcheck-iterations=10000000 #-}
 {-# LANGUAGE ViewPatterns #-}
 module Reduceq.Coq.Diff
   ( Diff(..)

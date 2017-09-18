@@ -370,6 +370,7 @@ transformExpr (Imp.Call (Imp.VarRef "write") args) =
     [xs, i, val] ->
       fmap ann $
       Coq.Set <$> transformExpr xs <*> transformExpr i <*> transformExpr val
+    _ -> throwError (ExpectedArgs "write" 3 (length args))
 transformExpr (Imp.Call (Imp.VarRef "concat") args) =
   case args of
     [xs] ->

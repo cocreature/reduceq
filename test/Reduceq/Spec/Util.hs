@@ -65,7 +65,7 @@ withStepsType :: Coq.ProgramSteps (Coq.Ann () (Coq.Expr ())) -> (Coq.ProgramStep
 withStepsType expr cont =
   case runInferM (inferStepsType (Coq.stripAnn <$> expr)) of
     Left err -> (expectationFailure . toS . Coq.displayCompact . showInferError) err
-    Right expr -> cont expr
+    Right expr' -> cont expr'
 
 withTypedReduced :: Text -> (Coq.TypedExpr -> Expectation) -> Expectation
 withTypedReduced input cont =
