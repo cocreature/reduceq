@@ -1,7 +1,8 @@
-resolver: lts-9.0
+resolver: lts-9.5
 packages:
 - '.'
 extra-deps:
-- containers-0.5.10.2
+  - containers-0.5.10.2
+  - protolude-0.2
 flags: {}
 extra-package-dbs: []
